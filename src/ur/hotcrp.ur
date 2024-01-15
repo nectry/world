@@ -9,14 +9,14 @@ datatype status =
 val _ : json status = json_derived
                           (fn x =>
                               case x of
-                                  "inprogress" => Inprogress
-                                | "withdrawn" => Withdrawn
-                                | "submitted" => Submitted
-                                | "Accepted" => Accepted
-                                | "Rejected" => Rejected
-                                | "accepted" => Accepted
-                                | "rejected" => Rejected
-                                | _ => error <xml>Bad HotCRP paper status {[x]}</xml>)
+                                  "inprogress" => Success Inprogress
+                                | "withdrawn" => Success Withdrawn
+                                | "submitted" => Success Submitted
+                                | "Accepted" => Success Accepted
+                                | "Rejected" => Success Rejected
+                                | "accepted" => Success Accepted
+                                | "rejected" => Success Rejected
+                                | _ => Failure <xml>Bad HotCRP paper status {[x]}</xml>)
                           (fn x =>
                               case x of
                                   Inprogress => "inprogress"
@@ -25,7 +25,7 @@ val _ : json status = json_derived
                                 | Accepted => "Accepted"
                                 | Rejected => "Rejected")
 
-val _ : json time = json_derived
+val _ : json time = json_derived'
                         (addSeconds minTime)
                         toSeconds
 

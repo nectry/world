@@ -25,9 +25,9 @@ datatype template_type =
 val _ : json template_type = json_derived
                                  (fn x =>
                                      case x of
-                                         "report" => Report
-                                       | "sheet" => Sheet
-                                       | _ => error <xml>Bad Smartsheet template type {[x]}</xml>)
+                                         "report" => Success Report
+                                       | "sheet" => Success Sheet
+                                       | _ => Failure <xml>Bad Smartsheet template type {[x]}</xml>)
                                 (fn x =>
                                     case x of
                                         Report => "report"
@@ -74,18 +74,18 @@ datatype column_type =
 val _ : json column_type = json_derived
                            (fn x =>
                                case x of
-                                   "ABSTRACT_DATETIME" => ABSTRACT_DATETIME
-                                 | "CHECKBOX" => CHECKBOX
-                                 | "CONTACT_LIST" => CONTACT_LIST
-                                 | "DATE" => DATE
-                                 | "DATETIME" => DATETIME
-                                 | "DURATION" => DURATION
-                                 | "MULTI_CONTACT_LIST" => MULTI_CONTACT_LIST
-                                 | "MULTI_PICKLIST" => MULTI_PICKLIST
-                                 | "PICKLIST" => PICKLIST
-                                 | "PREDECESSOR" => PREDECESSOR
-                                 | "TEXT_NUMBER" => TEXT_NUMBER
-                                 | _ => error <xml>Bad Smartsheet column type {[x]}</xml>)
+                                   "ABSTRACT_DATETIME" => Success ABSTRACT_DATETIME
+                                 | "CHECKBOX" => Success CHECKBOX
+                                 | "CONTACT_LIST" => Success CONTACT_LIST
+                                 | "DATE" => Success DATE
+                                 | "DATETIME" => Success DATETIME
+                                 | "DURATION" => Success DURATION
+                                 | "MULTI_CONTACT_LIST" => Success MULTI_CONTACT_LIST
+                                 | "MULTI_PICKLIST" => Success MULTI_PICKLIST
+                                 | "PICKLIST" => Success PICKLIST
+                                 | "PREDECESSOR" => Success PREDECESSOR
+                                 | "TEXT_NUMBER" => Success TEXT_NUMBER
+                                 | _ => Failure <xml>Bad Smartsheet column type {[x]}</xml>)
                            (fn x =>
                                case x of
                                    ABSTRACT_DATETIME => "ABSTRACT_DATETIME"
@@ -161,11 +161,11 @@ datatype source_type = Report | Sheet | Sight | Template
 val _ : json source_type = json_derived
                                (fn x =>
                                    case x of
-                                       "report" => Report
-                                     | "sheet" => Sheet
-                                     | "sight" => Sight
-                                     | "template" => Template
-                                     | _ => error <xml>Bad Smartsheet source type {[x]}</xml>)
+                                       "report" => Success Report
+                                     | "sheet" => Success Sheet
+                                     | "sight" => Success Sight
+                                     | "template" => Success Template
+                                     | _ => Failure <xml>Bad Smartsheet source type {[x]}</xml>)
                                (fn x =>
                                    case x of
                                        Report => "report"

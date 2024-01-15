@@ -9,6 +9,7 @@ $/string
 $/json
 $/monad
 $/option
+$/result
 $/list
 $/datetime
 api

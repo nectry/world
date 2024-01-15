@@ -114,7 +114,7 @@ functor ThreeLegged(M : sig
         </xml>
 end
 
-val _ : json time = json_derived (addSeconds minTime) toSeconds
+val _ : json time = json_derived' (addSeconds minTime) toSeconds
 
 type topic_or_purpose = {
      Value : string,
