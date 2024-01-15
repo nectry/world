@@ -24,12 +24,12 @@ datatype grace_period =
 val _ : json grace_period = json_derived
                             (fn x =>
                                 case x of
-                                    "one_day" => OneDay
-                                  | "two_days" => TwoDays
-                                  | "seven_days" => SevenDays
-                                  | "thirty_days" => ThirtyDays
-                                  | "always" => Always
-                                  | _ => error <xml>Bad Dropbox grace period {[x]}</xml>)
+                                    "one_day" => Success OneDay
+                                  | "two_days" => Success TwoDays
+                                  | "seven_days" => Success SevenDays
+                                  | "thirty_days" => Success ThirtyDays
+                                  | "always" => Success Always
+                                  | _ => Failure <xml>Bad Dropbox grace period {[x]}</xml>)
                             (fn x =>
                                 case x of
                                     OneDay => "one_day"
@@ -125,8 +125,8 @@ datatype template_filter_base =
 val _ : json template_filter_base = json_derived
                                     (fn x =>
                                         case x.Tag of
-                                            "filter_some" => FilterSome x.FilterSome
-                                          | _ => error <xml>Bad Dropbox filter {[x.Tag]}</xml>)
+                                            "filter_some" => Success (FilterSome x.FilterSome)
+                                          | _ => Failure <xml>Bad Dropbox filter {[x.Tag]}</xml>)
                                     (fn (FilterSome x) => {Tag = ".filter_some",
                                                            FilterSome = x})
 
@@ -190,10 +190,10 @@ datatype requested_visibility =
 val _ : json requested_visibility = json_derived
                                     (fn x =>
                                         case x of
-                                            "public" => VisPublic
-                                          | "team_only" => VisTeamOnly
-                                          | "password" => VisPassword
-                                          | _ => error <xml>Bad Dropbox visibility {[x]}</xml>)
+                                            "public" => Success VisPublic
+                                          | "team_only" => Success VisTeamOnly
+                                          | "password" => Success VisPassword
+                                          | _ => Failure <xml>Bad Dropbox visibility {[x]}</xml>)
                                     (fn x =>
                                         case x of
                                             VisPublic => "public"
@@ -208,11 +208,11 @@ datatype link_audience =
 val _ : json link_audience = json_derived
                              (fn x =>
                                  case x of
-                                     "public" => AudPublic
-                                   | "team" => AudTeam
-                                   | "no_one" => AudNoOne
-                                   | "password" => AudPassword
-                                   | _ => error <xml>Bad Dropbox audience {[x]}</xml>)
+                                     "public" => Success AudPublic
+                                   | "team" => Success AudTeam
+                                   | "no_one" => Success AudNoOne
+                                   | "password" => Success AudPassword
+                                   | _ => Failure <xml>Bad Dropbox audience {[x]}</xml>)
                              (fn x =>
                                  case x of
                                      AudPublic => "public"
@@ -227,10 +227,10 @@ datatype requested_link_access_level =
 val _ : json requested_link_access_level = json_derived
                                            (fn x =>
                                                case x of
-                                                   "viewer" => Viewer
-                                                 | "editor" => Editor
-                                                 | "max" => Max
-                                                 | _ => error <xml>Bad Dropbox access level {[x]}</xml>)
+                                                   "viewer" => Success Viewer
+                                                 | "editor" => Success Editor
+                                                 | "max" => Success Max
+                                                 | _ => Failure <xml>Bad Dropbox access level {[x]}</xml>)
                                            (fn x =>
                                                case x of
                                                    Viewer => "viewer"

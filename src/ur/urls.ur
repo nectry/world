@@ -1,21 +1,3 @@
-fun hexchar n =
-    if n < 0 then
-        error <xml>Urls.hexchar: negative</xml>
-    else if n < 10 then
-        show n
-    else if n < 16 then
-        str1 (chr (ord #"A" + n - 10))
-    else
-        error <xml>Urls.hexchar: too big</xml>
-
-fun unhexchar ch =
-    if Char.isDigit ch then
-        ord ch - ord #"0"
-    else if Char.isXdigit ch then
-        ord ch - ord #"A" + 10
-    else
-        error <xml>Urls.unhexchar: invalid</xml>
-
 fun ord' ch =
     let
         val n = ord ch
@@ -38,7 +20,7 @@ fun urlencode s =
                     val ch' = if Char.isAlnum ch || ch = #"_" || ch = #"-" || ch = #"." then
                                   str1 ch
                               else
-                                  "%" ^ hexchar (ord' ch / 16) ^ hexchar (ord' ch % 16)
+                                  "%" ^ str1(Char.fromHex (ord' ch / 16)) ^ str1(Char.fromHex (ord' ch % 16))
                 in
                     loop (strsuffixUtf8 s 1) (acc ^ ch')
                 end
@@ -54,8 +36,8 @@ fun urldecode s =
             else if String.sub s 0 = #"+" then
                 loop (String.suffix s 1) (acc ^ " ")
             else if String.sub s 0 = #"%" && String.length s >= 3 then
-                loop (String.suffix s 3) (acc ^ str1 (chr (16 * unhexchar (String.sub s 1)
-                                                           + unhexchar (String.sub s 2))))
+                loop (String.suffix s 3) (acc ^ str1 (chr (16 * Char.toHex (String.sub s 1)
+                                                           + Char.toHex (String.sub s 2))))
             else
                 loop (String.suffix s 1) (acc ^ str1 (String.sub s 0))
     in
