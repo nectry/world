@@ -494,17 +494,12 @@ val _ : json spreadsheet = json_record_withOptional {}
 
 datatype spreadsheet_request =
          AddSheet of sheet
-type spreadsheet_request' = variant [AddSheet = sheet]
-val _ : json spreadsheet_request' = json_variant {AddSheet = "addSheet"}
 
-fun spreadsheet_request_in (x : spreadsheet_request') : spreadsheet_request =
-    match x {AddSheet = AddSheet}
-
-fun spreadsheet_request_out (x : spreadsheet_request) : spreadsheet_request' =
-    case x of
-        AddSheet y => make [#AddSheet] y
-
-val json_spreadsheet_request = json_derived spreadsheet_request_in spreadsheet_request_out
+val json_spreadsheet_request = json_datatype
+    {AddSheet = "addSheet"}
+    {AddSheet = AddSheet}
+    (fn x => case x of
+        AddSheet y => make [#AddSheet] y)
 
 type spreadsheet_requests = {
      Requests : list spreadsheet_request

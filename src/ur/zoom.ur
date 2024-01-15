@@ -34,12 +34,12 @@ datatype meeting_type =
 val _ : json meeting_type = json_derived
                                 (fn x =>
                                     case x of
-                                        1 => Instant
-                                      | 2 => Scheduled
-                                      | 3 => RecurringUnfixed
-                                      | 8 => RecurringFixed
-                                      | 4 => PMI
-                                      | _ => error <xml>Bad Zoom meeting type {[x]}</xml>)
+                                        1 => Success Instant
+                                      | 2 => Success Scheduled
+                                      | 3 => Success RecurringUnfixed
+                                      | 8 => Success RecurringFixed
+                                      | 4 => Success PMI
+                                      | _ => Failure <xml>Bad Zoom meeting type {[x]}</xml>)
                                 (fn x =>
                                     case x of
                                         Instant => 1
@@ -55,10 +55,10 @@ datatype recurrence_type =
 val _ : json recurrence_type = json_derived
                                    (fn x =>
                                        case x of
-                                           1 => Daily
-                                         | 2 => Weekly
-                                         | 3 => Monthly
-                                         | _ => error <xml>Bad Zoom recurrence type {[x]}</xml>)
+                                           1 => Success Daily
+                                         | 2 => Success Weekly
+                                         | 3 => Success Monthly
+                                         | _ => Failure <xml>Bad Zoom recurrence type {[x]}</xml>)
                                    (fn x =>
                                        case x of
                                            Daily => 1
@@ -74,12 +74,12 @@ datatype monthly_week =
 val _ : json monthly_week = json_derived
                                 (fn x =>
                                     case x of
-                                        -1 => Last
-                                      | 1 => First
-                                      | 2 => Second
-                                      | 3 => Third
-                                      | 4 => Fourth
-                                      | _ => error <xml>Bad Zoom monthly week {[x]}</xml>)
+                                        -1 => Success Last
+                                      | 1 => Success First
+                                      | 2 => Success Second
+                                      | 3 => Success Third
+                                      | 4 => Success Fourth
+                                      | _ => Failure <xml>Bad Zoom monthly week {[x]}</xml>)
                                 (fn x =>
                                     case x of
                                         Last => -1
@@ -88,7 +88,7 @@ val _ : json monthly_week = json_derived
                                       | Third => 3
                                       | Fourth => 4)
 
-val _ : json Datetime.day_of_week = json_derived
+val _ : json Datetime.day_of_week = json_derived'
                                         (fn x => Datetime.intToDayOfWeek (x - 1))
                                         (fn x => 1 + Datetime.dayOfWeekToInt x)
 
@@ -119,10 +119,10 @@ datatype approval_type =
 val _ : json approval_type = json_derived
                                  (fn x =>
                                      case x of
-                                         0 => Automatically
-                                       | 1 => Manually
-                                       | 2 => NoRegistrationRequired
-                                       | _ => error <xml>Bad Zoom approval type {[x]}</xml>)
+                                         0 => Success Automatically
+                                       | 1 => Success Manually
+                                       | 2 => Success NoRegistrationRequired
+                                       | _ => Failure <xml>Bad Zoom approval type {[x]}</xml>)
                                  (fn x =>
                                      case x of
                                          Automatically => 0
@@ -136,26 +136,26 @@ datatype registration_type =
 val _ : json registration_type = json_derived
                                  (fn x =>
                                      case x of
-                                         1 => Once
-                                       | 2 => Each
-                                       | 3 => OnceForSeveral
-                                       | _ => error <xml>Bad Zoom registration type {[x]}</xml>)
+                                         1 => Success Once
+                                       | 2 => Success Each
+                                       | 3 => Success OnceForSeveral
+                                       | _ => Failure <xml>Bad Zoom registration type {[x]}</xml>)
                                  (fn x =>
                                      case x of
                                          Once => 1
                                        | Each => 2
                                        | OnceForSeveral => 3)
-         
+
 datatype audio =
          Both
        | Telephony
        | Voip
 val _ : json audio = json_derived
                          (fn x => case x of
-                                      "both" => Both
-                                    | "telephony" => Telephony
-                                    | "voip" => Voip
-                                    | _ => error <xml>Bad Zoom audio setting {[x]}</xml>)
+                                      "both" => Success Both
+                                    | "telephony" => Success Telephony
+                                    | "voip" => Success Voip
+                                    | _ => Failure <xml>Bad Zoom audio setting {[x]}</xml>)
                          (fn x =>
                              case x of
                                  Both => "both"
@@ -169,17 +169,17 @@ datatype auto_recording =
 val _ : json auto_recording = json_derived
                                   (fn x =>
                                       case x of
-                                          "local" => Local
-                                        | "cloud" => Cloud
-                                        | "none" => NoRecording
-                                        | _ => error <xml>Bad Zoom auto-recording setting {[x]}</xml>)
+                                          "local" => Success Local
+                                        | "cloud" => Success Cloud
+                                        | "none" => Success NoRecording
+                                        | _ => Failure <xml>Bad Zoom auto-recording setting {[x]}</xml>)
                                   (fn x =>
                                       case x of
                                           Local => "local"
                                         | Cloud => "cloud"
                                         | NoRecording => "none")
 
-val _ : json (list string) = json_derived
+val _ : json (list string) = json_derived'
                              (fn x =>
                                  let
                                      fun parse s =
@@ -209,9 +209,9 @@ datatype global_dial_in_type =
 val _ : json global_dial_in_type = json_derived
                                    (fn x =>
                                        case x of
-                                           "toll" => Toll
-                                         | "tollfree" => Tollfree
-                                         | _ => error <xml>Bad Zoom global-dial-in type {[x]}</xml>)
+                                           "toll" => Success Toll
+                                         | "tollfree" => Success Tollfree
+                                         | _ => Failure <xml>Bad Zoom global-dial-in type {[x]}</xml>)
                                    (fn x =>
                                        case x of
                                            Toll => "toll"
@@ -233,8 +233,9 @@ val _ : json global_dial_in_number = json_record_withOptional {Country = "countr
 type global_dial_in_country = {
      CountryName : string
 }
-val _ : json global_dial_in_country = json_derived (fn s => {CountryName = s})
-                                                   (fn r => r.CountryName)
+val _ : json global_dial_in_country = json_derived'
+    (fn s => {CountryName = s})
+    (fn r => r.CountryName)
 
 type meeting_settings = {
      HostVideo : option bool,
@@ -300,10 +301,10 @@ datatype meeting_status =
 val _ : json meeting_status = json_derived
                                   (fn x =>
                                       case x of
-                                          "waiting" => Waiting
-                                        | "started" => Started
-                                        | "finished" => Finished
-                                        | _ => error <xml>Bad Zoom meeting status {[x]}</xml>)
+                                          "waiting" => Success Waiting
+                                        | "started" => Success Started
+                                        | "finished" => Success Finished
+                                        | _ => Failure <xml>Bad Zoom meeting status {[x]}</xml>)
                                   (fn x =>
                                       case x of
                                           Waiting => "waiting"
@@ -380,10 +381,10 @@ datatype webinar_type =
 val _ : json webinar_type = json_derived
                                 (fn x =>
                                     case x of
-                                        5 => Webinar
-                                      | 6 => WebinarRecurringUnfixed
-                                      | 9 => WebinarRecurringFixed
-                                      | _ => error <xml>Bad Zoom webinar status {[x]}</xml>)
+                                        5 => Success Webinar
+                                      | 6 => Success WebinarRecurringUnfixed
+                                      | 9 => Success WebinarRecurringFixed
+                                      | _ => Failure <xml>Bad Zoom webinar status {[x]}</xml>)
                                 (fn x =>
                                     case x of
                                         Webinar => 5
@@ -496,14 +497,14 @@ datatype file_type =
 val _ : json file_type = json_derived
                              (fn x =>
                                  case x of
-                                     "MP4" => MP4
-                                   | "M4A" => M4A
-                                   | "TIMELINE" => TIMELINE
-                                   | "TRANSCRIPT" => TRANSCRIPT
-                                   | "CHAT" => CHAT
-                                   | "CC" => CC
-                                   | "" => NoTypeYet
-                                   | _ => error <xml>Bad Zoom file type {[x]}</xml>)
+                                     "MP4" => Success MP4
+                                   | "M4A" => Success M4A
+                                   | "TIMELINE" => Success TIMELINE
+                                   | "TRANSCRIPT" => Success TRANSCRIPT
+                                   | "CHAT" => Success CHAT
+                                   | "CC" => Success CC
+                                   | "" => Success NoTypeYet
+                                   | _ => Failure <xml>Bad Zoom file type {[x]}</xml>)
                              (fn x =>
                                  case x of
                                      MP4 => "MP4"
@@ -528,17 +529,17 @@ datatype recording_type =
 val _ : json recording_type = json_derived
                                   (fn x =>
                                       case x of
-                                          "shared_screen_with_speaker_view(CC)" => SharedScreenWithSpeakerViewCC
-                                        | "shared_screen_with_speaker_view" => SharedScreenWithSpeakerView
-                                        | "shared_screen_with_gallery_view" => SharedScreenWithGalleryView
-                                        | "speaker_view" => SpeakerView
-                                        | "gallery_view" => GalleryView
-                                        | "shared_screen" => SharedScreen
-                                        | "audio_only" => AudioOnly
-                                        | "audio_transcript" => AudioTranscript
-                                        | "chat_file" => ChatFile
-                                        | "TIMELINE" => Timeline
-                                        | _ => error <xml>Bad Zoom recording type {[x]}</xml>)
+                                          "shared_screen_with_speaker_view(CC)" => Success SharedScreenWithSpeakerViewCC
+                                        | "shared_screen_with_speaker_view" => Success SharedScreenWithSpeakerView
+                                        | "shared_screen_with_gallery_view" => Success SharedScreenWithGalleryView
+                                        | "speaker_view" => Success SpeakerView
+                                        | "gallery_view" => Success GalleryView
+                                        | "shared_screen" => Success SharedScreen
+                                        | "audio_only" => Success AudioOnly
+                                        | "audio_transcript" => Success AudioTranscript
+                                        | "chat_file" => Success ChatFile
+                                        | "TIMELINE" => Success Timeline
+                                        | _ => Failure <xml>Bad Zoom recording type {[x]}</xml>)
                                   (fn x =>
                                       case x of
                                           SharedScreenWithSpeakerViewCC => "shared_screen_with_speaker_view(CC)"
@@ -558,9 +559,9 @@ datatype recording_status =
 val _ : json recording_status = json_derived
                                 (fn x =>
                                     case x of
-                                        "processing" => Processing
-                                      | "completed" => Completed
-                                      | _ => error <xml>Bad Zoom recording status {[x]}</xml>)
+                                        "processing" => Success Processing
+                                      | "completed" => Success Completed
+                                      | _ => Failure <xml>Bad Zoom recording status {[x]}</xml>)
                                 (fn x =>
                                     case x of
                                         Processing => "processing"
@@ -622,10 +623,10 @@ datatype registrant_status =
 val _ : json registrant_status = json_derived
                                      (fn x =>
                                          case x of
-                                             "approved" => Approved
-                                           | "pending" => Pending
-                                           | "denied" => Denied
-                                           | _ => error <xml>Bad Zoom registrant status {[x]}</xml>)
+                                             "approved" => Success Approved
+                                           | "pending" => Success Pending
+                                           | "denied" => Success Denied
+                                           | _ => Failure <xml>Bad Zoom registrant status {[x]}</xml>)
                                      (fn x =>
                                          case x of
                                              Approved => "approved"
@@ -741,10 +742,10 @@ datatype concurrent_meeting = Basic | Plus | NoConcurrent
 val _ : json concurrent_meeting = json_derived
                                       (fn x =>
                                           case x of
-                                              "Basic" => Basic
-                                            | "Plus" => Plus
-                                            | "None" => NoConcurrent
-                                            | _ => error <xml>Bad Zoom concurrent-meeting setting {[x]}</xml>)
+                                              "Basic" => Success Basic
+                                            | "Plus" => Success Plus
+                                            | "None" => Success NoConcurrent
+                                            | _ => Failure <xml>Bad Zoom concurrent-meeting setting {[x]}</xml>)
                                      (fn x =>
                                          case x of
                                              Basic => "Basic"

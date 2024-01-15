@@ -26,7 +26,7 @@ val show_role = mkShow (fn x =>
                              | User => "user"
                              | Assistant => "assistant")
 
-val json_role : json role = @json_derived readError show _
+val json_role : json role = @json_derived Result.readResult show _
 
 
 type message = {
