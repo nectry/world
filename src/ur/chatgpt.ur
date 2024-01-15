@@ -53,14 +53,22 @@ type model = string
 val read_model = _
 val show_model = _
 
+type response_format = {
+    Type : string
+}
+
+val _ : json response_format = json_record {Type = "type"}
+
 type completions_arg = {
      Model : model,
      Messages : list {Role : role,
-                      Content : string}
+                      Content : string},
+     ResponseFormat: {Type: string}
 }
 val _ : json completions_arg = json_record
                                    {Model = "model",
-                                    Messages = "messages"}
+                                    Messages = "messages",
+                                    ResponseFormat = "response_format"}
 
 functor Make(M : sig
                  val token : transaction (option string)

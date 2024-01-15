@@ -23,7 +23,8 @@ functor Make(M : sig
     structure Chat : sig
         val completions : {Model : model,
                            Messages : list {Role : role,
-                                            Content : string}}
+                                            Content : string},
+                            ResponseFormat: {Type: string}}
                           -> transaction string
     end
 end
