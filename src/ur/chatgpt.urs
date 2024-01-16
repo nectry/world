@@ -15,6 +15,11 @@ datatype role = System | User | Assistant
 val read_role : read role
 val show_role : show role
 
+(* Different response type we can ask the GPT to return *)
+datatype response_format = AsJson | RegularText
+val read_response_format : read response_format
+val show_response_foramt : show response_format
+
 (** * Now for the actual methods.... *)
 
 functor Make(M : sig
@@ -24,7 +29,7 @@ functor Make(M : sig
         val completions : {Model : model,
                            Messages : list {Role : role,
                                             Content : string},
-                            ResponseFormat: {Type: string}}
+                            ResponseFormat: {Type: response_format}}
                           -> transaction string
     end
 end

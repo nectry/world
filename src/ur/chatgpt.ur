@@ -53,22 +53,37 @@ type model = string
 val read_model = _
 val show_model = _
 
-type response_format = {
-    Type : string
-}
+datatype response_format = AsJson | RegularText
+type response_format' = variant [AsJson = unit, RegularText = unit]
 
-val _ : json response_format = json_record {Type = "type"}
+val read_response_format = mkRead' (fn s =>
+                            case s of
+                                "json_object" => Some AsJson
+                              | "text" => Some RegularText
+                              | _ => None)
+                        "response_format"
+
+val show_response_foramt = mkShow (fn x =>
+                           case x of
+                               AsJson => "json_object"
+                             | RegularText => "text")
+
+val json_response_format : json response_format = @json_derived Result.readResult show _
+
+type response_format_dict = {Type : response_format}
+
+val _ : json response_format_dict = json_record {Type = "type"}
 
 type completions_arg = {
      Model : model,
      Messages : list {Role : role,
                       Content : string},
-     ResponseFormat: {Type: string}
+     ResponseFormat: response_format_dict
 }
 val _ : json completions_arg = json_record
                                    {Model = "model",
                                     Messages = "messages",
-                                    ResponseFormat = "response_format"}
+                                    ResponseFormat = "response_format_dict"}
 
 functor Make(M : sig
                  val token : transaction (option string)
