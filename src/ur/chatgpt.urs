@@ -29,6 +29,9 @@ functor Make(M : sig
         val completions : {Model : model,
                            Messages : list {Role : role,
                                             Content : string},
+       (*The OpenAI documentation (found here: https://platform.openai.com/docs/api-reference/chat/create)
+        dictates that response type is a field of a dict with key "type". 
+        There are other values allowed in this dict, but we are only using "type" for now.*) 
                             ResponseFormat: {Type: response_format}}
                           -> transaction string
     end
