@@ -53,6 +53,8 @@ type model = string
 val read_model = _
 val show_model = _
 
+datatype response_format = AsJson | RegularText
+
 (* handling conversion between response_format and actual string *)
 val read_response_format = mkRead' (fn s =>
                             case s of
