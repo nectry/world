@@ -83,7 +83,7 @@ type completions_arg = {
 val _ : json completions_arg = json_record
                                    {Model = "model",
                                     Messages = "messages",
-                                    ResponseFormat = "response_format_dict"}
+                                    ResponseFormat = "response_format"}
 
 functor Make(M : sig
                  val token : transaction (option string)
