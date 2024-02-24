@@ -26,3 +26,6 @@ val scrypt : string (* password *)
              -> signatur
 
 val allowHttp : transaction unit
+
+val base64Encode : blob -> string
+val base64Decode : string -> blob
