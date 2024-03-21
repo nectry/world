@@ -27,7 +27,7 @@ datatype message
     (* A plain text message *)
   | UserImageUrl of string
     (* A url to an image that the user wants ChatGPT to reference *)
-  | UserImage of blob
+  | UserImage of string
     (* A base64-encoded image that the user wants ChatGPT to reference *)
 
 

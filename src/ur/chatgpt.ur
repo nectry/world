@@ -30,7 +30,7 @@ val json_role : json role = @json_derived Result.readResult show _
 datatype message
   = PlainText of {Role : role, Content : string}
   | UserImageUrl of string
-  | UserImage of blob
+  | UserImage of string (* base64 encoded blob *)
 
 (* We're using a simplified message type, (as compared to
 https://platform.openai.com/docs/api-reference/chat/create), where, in
@@ -68,14 +68,14 @@ val json_message : json message =
               String.isPrefix {Prefix = "R0lGODlh", Full = c.ImageUrl.Url} || (* image/gif *)
               String.isPrefix {Prefix = "iVBORw0KGgo", Full = c.ImageUrl.Url} || (* image/png *)
               String.isPrefix {Prefix = "/9j/", Full = c.ImageUrl.Url} (* image/jpg *)
-            then Success (UserImage (WorldFfi.base64Decode c.ImageUrl.Url))
+            then Success (UserImage c.ImageUrl.Url)
             else Success (UserImageUrl c.ImageUrl.Url)
         | _ => Failure <xml>Can only have one value per Chatgpt.message list!</xml>
       })
     (fn m => case m of
         PlainText x => {Role = x.Role, Content = make [#Str] x.Content}
       | UserImageUrl str => {Role = User, Content = make [#Lst] ({Typ = "image_url", ImageUrl = {Url = str}} :: [])}
-      | UserImage blob => {Role = User, Content = make [#Lst] ({Typ = "image_url", ImageUrl = {Url = WorldFfi.base64Encode blob}} :: [])}
+      | UserImage image => {Role = User, Content = make [#Lst] ({Typ = "image_url", ImageUrl = {Url = image}} :: [])}
     )
   end
 
