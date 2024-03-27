@@ -30,7 +30,7 @@ val json_role : json role = @json_derived Result.readResult show _
 datatype message
   = PlainText of {Role : role, Content : string}
   | UserImageUrl of string
-  | UserImage of string (* base64 encoded blob *)
+  | UserImage of {Image : blob, MimeType : string}
 
 (* We're using a simplified message type, (as compared to
 https://platform.openai.com/docs/api-reference/chat/create), where, in
@@ -64,18 +64,18 @@ val json_message : json message =
         (* That said, I don't think this code is ever used anyway as we never
         parse input messages! *)
           c :: [] =>
-            if String.isPrefix {Prefix = "R0lGODdh", Full = c.ImageUrl.Url} || (* image/gif *)
-              String.isPrefix {Prefix = "R0lGODlh", Full = c.ImageUrl.Url} || (* image/gif *)
-              String.isPrefix {Prefix = "iVBORw0KGgo", Full = c.ImageUrl.Url} || (* image/png *)
-              String.isPrefix {Prefix = "/9j/", Full = c.ImageUrl.Url} (* image/jpg *)
-            then Success (UserImage c.ImageUrl.Url)
+            if String.isPrefix {Prefix = "data:image", Full = c.ImageUrl.Url}
+            then (case String.ssplit {Haystack = String.suffix c.ImageUrl.Url 5, Needle = ";base64,"} of
+                Some (mimeType, imageData) => Success (UserImage {Image = WorldFfi.base64Decode imageData, MimeType = mimeType})
+              | None => Failure <xml>ChatGPT: Bad base64 encoded image</xml>)
             else Success (UserImageUrl c.ImageUrl.Url)
         | _ => Failure <xml>Can only have one value per Chatgpt.message list!</xml>
       })
     (fn m => case m of
         PlainText x => {Role = x.Role, Content = make [#Str] x.Content}
       | UserImageUrl str => {Role = User, Content = make [#Lst] ({Typ = "image_url", ImageUrl = {Url = str}} :: [])}
-      | UserImage image => {Role = User, Content = make [#Lst] ({Typ = "image_url", ImageUrl = {Url = image}} :: [])}
+      | UserImage img => {Role = User, Content = make [#Lst] ({Typ = "image_url", ImageUrl =
+          {Url = "data:" ^ img.MimeType ^ ";base64," ^ WorldFfi.base64Encode img.Image}} :: [])}
     )
   end
 
