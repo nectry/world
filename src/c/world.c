@@ -338,9 +338,10 @@ uw_WorldFfi_signatur uw_WorldFfi_scrypt(uw_context ctx, uw_Basis_string passwd, 
 
 uw_Basis_string uw_WorldFfi_base64Encode(uw_context ctx, uw_Basis_blob b) {
   uw_Basis_string r;
-  r = uw_malloc(ctx, Base64encode_len(b.size + 1));
+  size_t rLen = Base64encode_len(b.size);
+  r = uw_malloc(ctx, rLen + 1);
   Base64encode(r, b.data, b.size);
-  r[b.size] = 0;
+  r[rLen] = 0;
   return r;
 }
 
