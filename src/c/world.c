@@ -12,8 +12,6 @@
 
 #include <libscrypt.h>
 
-#include "base64.h"
-
 #include <urweb.h>
 #include <world.h>
 
@@ -127,12 +125,12 @@ static int doweb(uw_context ctx, uw_buffer *buf, CURL *c, uw_Basis_string url, i
       uw_error(ctx, FATAL, "Error response #%d from remote server: %s", http_code, buf->start);
       return 0;
     }
-  }
+  } 
 }
 
 static uw_Basis_string nonget(const char *verb, uw_context ctx, uw_Basis_string url, uw_WorldFfi_headers hs, uw_Basis_string bodyContentType, uw_Basis_string body) {
   uw_buffer buf;
-
+  
   uw_Basis_string lastUrl = uw_get_global(ctx, "world.lastUrl");
   if (lastUrl && !strcmp(lastUrl, url)) {
     uw_Basis_string lastVerb = uw_get_global(ctx, "world.lastVerb");
@@ -220,7 +218,7 @@ uw_Basis_string uw_WorldFfi_get(uw_context ctx, uw_Basis_string url, uw_WorldFfi
 
   curl_easy_setopt(c, CURLOPT_HTTPHEADER, slist);
   uw_push_cleanup(ctx, (void (*)(void *))curl_slist_free_all, slist);
-
+ 
   (void)doweb(ctx, &buf, c, url, encode_errors, 0);
   uw_Basis_string ret = uw_strdup(ctx, buf.start);
   uw_pop_cleanup(ctx);
@@ -233,7 +231,7 @@ uw_Basis_string uw_WorldFfi_getOpt(uw_context ctx, uw_Basis_string url, uw_World
   uw_buffer buf;
   CURL *c = curl(ctx);
   uw_Basis_string ret;
-
+  
   curl_easy_reset(c);
 
   struct curl_slist *slist = NULL;
@@ -249,7 +247,7 @@ uw_Basis_string uw_WorldFfi_getOpt(uw_context ctx, uw_Basis_string url, uw_World
 
   curl_easy_setopt(c, CURLOPT_HTTPHEADER, slist);
   uw_push_cleanup(ctx, (void (*)(void *))curl_slist_free_all, slist);
-
+ 
   if (doweb(ctx, &buf, c, url, encode_errors, 1))
     ret = NULL;
   else
@@ -335,21 +333,3 @@ uw_WorldFfi_signatur uw_WorldFfi_scrypt(uw_context ctx, uw_Basis_string passwd, 
 
   return sig;
 }
-
-uw_Basis_string uw_WorldFfi_base64Encode(uw_context ctx, uw_Basis_blob b) {
-  uw_Basis_string r;
-  size_t rLen = Base64encode_len(b.size);
-  r = uw_malloc(ctx, rLen + 1);
-  Base64encode(r, b.data, b.size);
-  r[rLen] = 0;
-  return r;
-}
-
-uw_Basis_blob uw_WorldFfi_base64Decode(uw_context ctx, uw_Basis_string s) {
-  char *data;
-  data = uw_malloc(ctx, Base64decode_len(s));
-  size_t actualSize = Base64decode(data, s);
-  uw_Basis_blob b = {actualSize, data};
-  return b;
-}
-

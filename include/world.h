@@ -25,6 +25,3 @@ uw_Basis_string uw_WorldFfi_delete(uw_context, uw_Basis_string url, uw_WorldFfi_
 uw_Basis_string uw_WorldFfi_patch(uw_context, uw_Basis_string url, uw_WorldFfi_headers, uw_Basis_string bodyContentType, uw_Basis_string body);
 
 uw_Basis_unit uw_WorldFfi_allowHttp(uw_context);
-
-uw_Basis_string uw_WorldFfi_base64Encode(uw_context, uw_Basis_blob);
-uw_Basis_blob uw_WorldFfi_base64Decode(uw_context, uw_Basis_string);
