@@ -101,7 +101,6 @@ type model = string
 val read_model = _
 val show_model = _
 
-
 functor Make(M : sig
                  val token : transaction (option string)
              end) = struct
@@ -118,13 +117,14 @@ functor Make(M : sig
         WorldFfi.post (bless (urlPrefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/json") body
 
     structure Chat = struct
-        type completionsArg = {Model : model, Messages : list message, ResponseFormat: {Type : response_format}}
+        type completionsArg = {Model : model, Messages : list message, ResponseFormat: {Type : response_format}, Temperature : float}
         val _ : json completionsArg =
           let val _ : json {Type : response_format} = json_record {Type = "type"}
           in json_record {
               Model = "model",
               Messages = "messages",
-              ResponseFormat = "response_format"
+              ResponseFormat = "response_format",
+              Temperature = "temperature"
             }
           end
         type response = {Choices : list {Message : {Role : role, Content : string}}}

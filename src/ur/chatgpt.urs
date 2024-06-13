@@ -49,7 +49,8 @@ functor Make(
       val completions :
         {Model : model,
          Messages : list message,
-         ResponseFormat: {Type: response_format}}
+         ResponseFormat: {Type: response_format},
+         Temperature : float}
         -> transaction string
     end
 end
