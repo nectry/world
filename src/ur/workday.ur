@@ -45,14 +45,14 @@ val _ : json worker = json_record
                        PrimaryWorkEmail = "primaryWorkEmail"}
 
 type directReports = {
-     Id : wid, (* manager *)
+     Manager : wid, (* manager *)
      Reports : list wid (* list of worker ids *)
 }
 
 (* could be anonymous instance by inlining the record structure *)
 type response object = {Data : object}
 fun json_response [object] (_ : json object) : json (response object) =
-    json_record {Data : "data"}
+    json_record {Data = "data"}
 
 (* Generic way to refer to other objects by ID and provide a short preview string. *)
 type descriptor = {
@@ -235,9 +235,30 @@ type feedbackDisplay = {
 }
 *)
 (* my version *)
-type feedbackStatus = Complete | Requested
+datatype feedbackStatus = Complete | Requested
 (* TODO: typeclasses like eq and sql_injectable *)
 
+type feedback = {
+      Id : wid,
+      Url : string,
+      Created : time,
+      RequestedDate : time,
+      About : wid, (* who the feedback is about *)
+      Provider : wid, (* who writes the feedback *)
+      RequestedBy : wid,
+      Body : string, (* response *)
+      Guidance : string,
+      Status : feedbackStatus,
+      SendMail : bool,
+      LastUpdated : time
+}
+
+table workers : {
+      Id : wid,
+      WName : string, (* name *)
+      IsManager : bool,
+      PrimaryWorkEmail : string
+} PRIMARY KEY Id
 table feedback : {
       Id : wid,
       Url : string,
@@ -255,12 +276,6 @@ table feedback : {
   CONSTRAINT About FOREIGN KEY About REFERENCES workers(Id),
   CONSTRAINT Provider FOREIGN KEY Provider REFERENCES workers(Id),
   CONSTRAINT RequestedBy FOREIGN KEY RequestedBy REFERENCES workers(Id)
-table workers : {
-      Id : wid,
-      WName : string, (* name *)
-      IsManager : bool,
-      PrimaryWorkEmail : string
-} PRIMARY KEY Id
 table directReports : {
       Manager : wid,
       Report : wid
@@ -316,73 +331,45 @@ functor Make(M : AUTH) = struct
         return v
 
     fun api service url =
-        let prefix = urlOfService service in
+        let val prefix = urlOfService service in
           tok <- token;
           debug ("Workday GET: " ^ prefix ^ url);
           logged (WorldFfi.get (bless (prefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) False)
         end
 
     fun apiOpt service url =
-        let prefix = urlOfService service in
+        let val prefix = urlOfService service in
           tok <- token;
           debug ("Workday GET: " ^ prefix ^ url);
           logged (WorldFfi.getOpt (bless (prefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) False)
         end
 
     fun apiPost service url body =
-        let prefix = urlOfService service in
+        let val prefix = urlOfService service in
           tok <- token;
           debug ("Workday POST: " ^ prefix ^ url);
           debug ("Workday body: " ^ body);
           logged (WorldFfi.post (bless (prefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/json") body)
         end
 
-    (* Interface to Workday API for making GET and POST requests. *)
-    structure WorkdayApi = struct
-        structure Workers = struct
-            fun get (workerId : wid) : transaction worker =
-                s <- api Common ("/workers/" ^ workerId);
-                return (fromJson s).Data
-                (* TODO: maybe this should return option worker? *)
-
-            val getAll : transaction (list worker) =
-                s <- api Common "/workers";
-                return (fromJson s).Data
-        end
-
-        structure Feedback = struct
-            fun get (workerId : wid) : transaction (list anytimeFeedback) =
-                s <- api PerformanceEnablement "/workers/" ^ workerId ^ "/anytimeFeedback";
-                return (fromJson s).Data
-
-            val getAll : transaction (list anytimeFeedback)
-                workers <- Workers.list;
-                List.mapConcatM (fn w => WorkdayAPI.Feedback.get w.Id) workers
-
-            (* TODO: post *)
-        end
-
-        structure DirectReports = struct
-            fun get (managerId : wid) : directReports =
-                s <- api Common ("/workers/" ^ managerId ^ "/directReports");
-                reports <- return (fromJson s : list worker);
-                return {Id = managerId,
-                        Reports = List.mp (fn w => w.Id) reports}
-        end
-    end
-
     (* High-level interface for interacting with local Nectry tables. *)
     structure Workers = struct
         val list : transaction (list worker) =
-            queryL1 (SELECT * FROM workers);
+            queryL1 (SELECT * FROM workers)
 
         fun manager (workerId : wid) : transaction worker =
-            oneRow (SELECT t.Manager FROM directReports AS t
-                    WHERE t.Report = {workerId});
+            mid <- oneRow (SELECT directReports.Manager FROM directReports
+                           WHERE directReports.Report = {[workerId]});
+            oneRow (SELECT * FROM workers
+                    WHERE workers.Id = {[mid]})
+
 
         fun reports (managerId : wid) : transaction (list worker) =
-            queryL1 (SELECT t.Report FROM directReports AS t
-                     WHERE t.Manager = {managerId});
+            rids <- queryL1 (SELECT directReports.Report FROM directReports
+                             WHERE directReports.Manager = {[managerId]});
+            queryL1 (SELECT * FROM workers WHERE {[List.mem [#Id] rids]})
+
+        (* TODO: historical relationship *)
 
         (* TODO:
          * list feedback you've requested
@@ -392,33 +379,40 @@ functor Make(M : AUTH) = struct
          * present page of feedback submission form ("provide feedback")
          * only present the page (url has the request ID) if the "provider" matches the whoami
          *)
+    end
 
     (* High-level interface for interacting with local Nectry tables. *)
     structure Feedback = struct
         val list : transaction (list feedbackRequestDisplay) =
             (* TODO *)
+            error <xml>unimplemented</xml>
             (* whoami *)
 
         (* TODO: could defunctionalize this by passing a set of flags:
            * Assigned | Submitted | Anytime | All
            * Incomplete (aka Outstanding) | Completed | All
          *)
-        val assignedRequests : transaction (list feedback) =
+        val assigned : transaction (list feedback) =
             (* TODO *)
+            error <xml>unimplemented</xml>
 
         (* Requests you have submitted, regardless of status. Empty for non-managers. *)
-        val submittedRequests : transaction (list feedback) =
+        val submitted : transaction (list feedback) =
             (* TODO *)
+            error <xml>unimplemented</xml>
 
         (* Requests you have completed *)
-        val completedRequests : transaction (list feedback) =
+        val completed : transaction (list feedback) =
             (* TODO *)
+            error <xml>unimplemented</xml>
 
         fun submit (response : feedback) : transaction unit =
             (* TODO *)
+            error <xml>unimplemented</xml>
 
         fun request (request : feedback) : transaction unit =
             (* TODO *)
+            error <xml>unimplemented</xml>
 
         (* TODO: use this convenient function from Zoom for getting data from within a certain date range? *)
         (*
@@ -439,245 +433,39 @@ functor Make(M : AUTH) = struct
             end
             *)
     end
-end
 
-(* Functor for deep link handler. *)
-(* Takes url as input. *)
-functor MakeForm(M : sig
-                     (* TODO: arguments to complex form *)
-                     (* TODO: need table argument *)
-  (*
-  con tabColumns :: {Type}
-  con ingredientConfig :: Type
-  con ingredientState :: Type
+    (* Interface to Workday API for making GET and POST requests. *)
+    structure WorkdayApi = struct
+        structure WorkersApi = struct
+            fun get (workerId : wid) : transaction worker =
+                s <- api Common ("/workers/" ^ workerId);
+                return (fromJson s).Data
+                (* TODO: maybe this should return option worker? *)
 
-  val rowIngredients : form [] tabColumns ingredientConfig ingredientState
-  val labels : $(map (fn _ => string) tabColumns)
+            val getAll : transaction (list worker) =
+                s <- api Common "/workers";
+                return (fromJson s).Data
+        end
 
-  val fl : folder tabColumns
-  val inj : $(map sql_injectable tabColumns)
+        structure FeedbackApi = struct
+            fun get (workerId : wid) : transaction (list anytimeFeedback) =
+                s <- api PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedback");
+                return (fromJson s).Data
 
-  val buttonText : string
+            val getAll : transaction (list anytimeFeedback) =
+                workers <- Workers.list;
+                List.mapConcatM (fn w => get w.Id) workers
 
-  val whoami : transaction (option string)
+            (* TODO: post *)
+        end
 
-  table tab : $tabColumns
-  val title : string
-  *)
-
-                 end) = struct
-  (* TODO: look up the URL in the table? *)
-  (* create the complex form UI *)
-
-    type input = wid (* or string? *)
-
-    formUi = ComplexForm.MakeForm(M) (* non-modal form *)
-
-    (* turn S0 into S *)
-    (* takes row ID as input *)
-    val ui = {Render = formUi.Render,
-              Create = formUi.Create,
-              formUi.
+        structure DirectReportsApi = struct
+            fun get (managerId : wid) : transaction directReports =
+                s <- api Common ("/workers/" ^ managerId ^ "/directReports");
+                reports <- return (fromJson s : list worker);
+                return {Id = managerId,
+                        Reports = List.mp (fn w => w.Id) reports}
+        end
     end
 
-
-functor MakeSync(M : sig
-                 include NectryApi.SYNC_IN
-
-                 table directReports : {Id : wid,
-                                        Reports : list wid}
-                 table worker : {Id : wid,
-                                 WName : string, (* name *)
-                                 IsManager : bool,
-                                 PrimaryWorkEmail : string}
-                 table feedback : {Id : wid,
-                                   Url : string,
-                                   Created : time,
-                                   RequestedDate : time,
-                                   About : wid, (* who the feedback is about *)
-                                   Provider : wid, (* who writes the feedback *)
-                                   RequestedBy : wid,
-                                   Body : string, (* response *)
-                                   Guidance : string,
-                                   Status : feedbackStatus,
-                                   SendMail : bool,
-                                   LastUpdated : time}
-             end) = struct
-    open M
-
-    structure W = Make(M) (* main module Make - i.e. give access to API calls *)
-
-    val n_sync =
-        (* Pull worker data. *)
-        workers <- W.WorkdayApi.Workers.getAll;
-        List.app (fn w : worker =>
-                  (alreadyThere <- oneRowE1 (SELECT COUNT( * ) > 0
-                                            FROM workers
-                                            WHERE workers.N_Workday_0020Worker_Id = {[w.Id]});
-                   (if alreadyThere then
-                         return ()
-                     else
-                         dml (INSERT INTO workers(
-                               N_Workday_0020Worker_Id,
-                               N_Workday_0020Worker_Descriptor,
-                               N_Workday_0020Worker_IsManager,
-                               N_Workday_0020Worker_Email)
-                             VALUES ({[w.Id]}, {[w.Descriptor]}, {[w.IsManager]},
-                                     {[m.Email]})));
-                 )) workers;
-
-        ChangeWatcher.changed "Worker";
-
-        (* Compute direct reports. *)
-        directReports <- List.map (fn m => {Manager = m.Id,
-                                            Reports = W.WorkdayApi.DirectReports.get m.Id})
-               (filter (fn w : worker => w.IsManager) workers);
-        List.app (fn dr =>
-                  List.app (fn rep =>
-                    (alreadyThere <- oneRowE1 (SELECT COUNT ( * ) > 0
-                                              FROM directReports AS drs
-                                              WHERE drs.Manager = {[dr.Manager]}
-                                              AND drs.Report = {[rep]});
-                    (if alreadyThere then
-                          return ()
-                     else
-                          dml (INSERT INTO directReports(Manager, Report)
-                               VALUES ({[dr.Manager]}, {[rep]})));
-                     )) dr.Reports)
-                 directReports;
-
-        ChangeWatcher.changed "Direct Reports";
-
-        (* Pull feedback data. *)
-        feedback <- W.WorkdayApi.Feedback.getAll;
-        List.app (fn f : feedback =>
-                  (alreadyThere <- oneRowE1 (SELECT COUNT( * ) > 0
-                                            FROM feedback
-                                            WHERE feedback.Id = {[f.Id]});
-                   (if alreadyThere then
-                         return ()
-                     else
-                         dml (INSERT INTO feedback(
-                               Id,
-                               Url,
-                               Created,
-                               RequestedDate,
-                               About,
-                               Provider,
-                               RequestedBy,
-                               Body,
-                               Guidance,
-                               Status,
-                               SendMail,
-                               LastUpdated)
-                             VALUES ({[f.Id]}, {[f.Url]}, {[f.Created]},
-                                     {[f.RequestedDate]},
-                                     {[f.About]},
-                                     {[f.Provider]},
-                                     {[f.RequestedBy]},
-                                     {[f.Body]},
-                                     {[f.Guidance]},
-                                     {[f.Status]},
-                                     {[f.SendMail]},
-                                     {[f.LastUpdated]})));
-                 )) feedback;
-
-        ChangeWatcher.changed "Feedback"
-
-    (* TODO: will we use webhooks? *)
-    fun n_webhook pbody =
-        return ()
-end
-
-type token_response = {
-     AccessToken : string,
-     RefreshToken : string
-}
-val _ : json token_response =
-    json_record {AccessToken = "access_token",
-                 RefreshToken = "refresh_token"}
-(* TODO: get expiration time from response? *)
-
-functor TwoLegged(M : sig
-                      val client_id : string
-                      val client_secret : string
-                  end) = struct
-    open M
-
-    table mytoken : { Token : string,
-                      Expires : time,
-                      Refresh : string }
-
-    task periodic 60 = fn () =>
-                          tm <- now;
-                          dml (DELETE FROM mytoken
-                               WHERE Expires < {[addSeconds tm (-60)]})
-
-    (* Given a refresh token, generate a new token. *)
-    fun refresh refreshToken =
-        let val basic = Urls.base64url_encode (client_id ^ ":" ^ client_secret)
-            val headers = WorldFfi.addHeader WorldFfi.emptyHeaders
-                                             "Authorization"
-                                             ("Basic " ^ basic)
-            val body = "grant_type=refresh_token&refresh_token=" ^ refreshToken
-        in
-            tm <- now;
-            exp <- return (addSeconds tm (60 * 60 * 4));
-            resp <- WorldFfi.post
-                        (bless "https://wcpdev-services1.wd101.myworkday.com/ccx/oauth2/janestreet_wcpdev1/token")
-                        headers
-                        (Some "application/x-www-form-urlencoded")
-                        body;
-            resp <- return (fromJson resp : token_response);
-            dml (INSERT INTO mytoken(Token, Expires, Refresh)
-                 VALUES ({[resp.AccessToken]}, {[exp]}, {[resp.RefreshToken]}));
-            return (Some resp.AccessToken);
-
-    val token =
-        tokopt <- oneOrNoRowsE1 (SELECT (mytoken.Token)
-                                 FROM mytoken);
-        case tokopt of
-            Some tok =>
-            tm <- now;
-            exp <- tok.Expires;
-            if exp < addSeconds tm (-60)
-            then
-                dml (DELETE FROM mytoken WHERE TRUE);
-                refresh tok.Refresh;
-            else return (Some tok)
-          | None =>
-            tm <- now;
-            exp <- return (addSeconds tm (4 * 60 * 60));
-            (* FIXME: how to get initial token??? *)
-
-            basic <- return (Urls.base64url_encode (client_id ^ ":" ^ client_secret))
-            headers <- return (WorldFfi.addHeader WorldFfi.emptyHeaders
-                                                  "Authorization"
-                                                  ("Basic " ^ basic))
-            resp <- WorldFfi.post
-                      (bless "https://wcpdev-services1.wd101.myworkday.com/ccx/oauth2/janestreet_wcpdev1/token")
-                      headers
-                      (Some "application/x-www-form-urlencoded");
-            resp <- return (fromJson resp : token_response);
-            dml (DELETE FROM mytoken WHERE TRUE);
-            dml (INSERT INTO mytoken(Token, Expires, Refresh)
-                 VALUES ({[resp.AccessToken]}, {[exp]}, {[resp.RefreshToken]}));
-            return (Some token)
-end
-
-functor MakeTwoLegged(M : sig
-                          val api_key : string
-                          val api_secret : string
-                          val scope : scope
-                      end) = struct
-    structure Z = TwoLegged(M)
-
-    val token = Z.token
-    val n_token = token
-    val status = return <xml></xml>
-    val n_status = status
-
-    val n_auth = {Token = token,
-                  Status = status,
-                  Logout = return ()}
 end
