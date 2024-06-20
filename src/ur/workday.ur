@@ -240,7 +240,6 @@ datatype feedbackStatus = Complete | Requested
 
 type feedback = {
       Id : wid,
-      Url : string,
       Created : time,
       RequestedDate : time,
       About : wid, (* who the feedback is about *)
@@ -259,9 +258,11 @@ table workers : {
       IsManager : bool,
       PrimaryWorkEmail : string
 } PRIMARY KEY Id
+con workers_hidden_constraints = []
+constraint [Pkey = [Id]] ~ workers_hidden_constraints
+
 table feedback : {
       Id : wid,
-      Url : string,
       Created : time,
       RequestedDate : time,
       About : wid, (* who the feedback is about *)
@@ -276,11 +277,16 @@ table feedback : {
   CONSTRAINT About FOREIGN KEY About REFERENCES workers(Id),
   CONSTRAINT Provider FOREIGN KEY Provider REFERENCES workers(Id),
   CONSTRAINT RequestedBy FOREIGN KEY RequestedBy REFERENCES workers(Id)
+con feedback_hidden_constraints = []
 table directReports : {
       Manager : wid,
       Report : wid
 } CONSTRAINT Manager FOREIGN KEY Manager REFERENCES workers(Id),
   CONSTRAINT Report FOREIGN KEY Report REFERENCES workers(Id)
+con directReports_hidden_constraints = []
+constraint [Manager, Report] ~ directReports_hidden_constraints
+
+(* TODO: url table? *)
 
 (* The user-facing version of feedback requests.
    This is what workers see when they check their outstanding feedback
@@ -365,9 +371,10 @@ functor Make(M : AUTH) = struct
 
 
         fun reports (managerId : wid) : transaction (list worker) =
-            rids <- queryL1 (SELECT directReports.Report FROM directReports
-                             WHERE directReports.Manager = {[managerId]});
-            queryL1 (SELECT * FROM workers WHERE {[List.mem [#Id] rids]})
+            queryL1 (SELECT workers.Id, workers.WName, workers.IsManager,
+            workers.PrimaryWorkEmail FROM directReports JOIN workers
+                     ON workers.Id = directReports.Report
+                     WHERE directReports.Manager = {[managerId]})
 
         (* TODO: historical relationship *)
 
@@ -383,7 +390,7 @@ functor Make(M : AUTH) = struct
 
     (* High-level interface for interacting with local Nectry tables. *)
     structure Feedback = struct
-        val list : transaction (list feedbackRequestDisplay) =
+        val list : transaction (list feedback) =
             (* TODO *)
             error <xml>unimplemented</xml>
             (* whoami *)
@@ -448,13 +455,13 @@ functor Make(M : AUTH) = struct
         end
 
         structure FeedbackApi = struct
-            fun get (workerId : wid) : transaction (list anytimeFeedback) =
+            fun get (workerId : wid) : transaction anytimeFeedback =
                 s <- api PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedback");
                 return (fromJson s).Data
 
             val getAll : transaction (list anytimeFeedback) =
                 workers <- Workers.list;
-                List.mapConcatM (fn w => get w.Id) workers
+                List.mapM (fn w => get w.Id) workers
 
             (* TODO: post *)
         end

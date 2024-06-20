@@ -103,7 +103,6 @@ datatype feedbackStatus = Complete | Requested
 
 type feedback = {
       Id : wid,
-      Url : string,
       Created : time,
       RequestedDate : time,
       About : wid, (* who the feedback is about *)
@@ -124,7 +123,6 @@ table workers : {
 } PRIMARY KEY Id
 table feedback : {
       Id : wid,
-      Url : string,
       Created : time,
       RequestedDate : time,
       About : wid, (* who the feedback is about *)
