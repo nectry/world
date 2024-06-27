@@ -2,14 +2,15 @@ signature AUTH = sig
     val token : transaction (option string)
 end
 
-(* Opaque type for all Workday IDs. *)
-type wid
-type worker = {
-     Id : wid,
-     WName : string, (* name *)
-     IsManager : bool,
-     PrimaryWorkEmail : string
-}
+(* Nonopaque type for all Workday IDs. *)
+type wid = string
+
+con worker = [
+     Id = wid,
+     WName = string, (* name *)
+     IsManager = bool,
+     PrimaryWorkEmail = string
+]
 type directReports = {
      Manager : wid, (* manager *)
      Reports : list wid (* list of worker ids *)
@@ -99,44 +100,36 @@ type anytimeFeedback = {
 }
 
 datatype feedbackStatus = Complete | Requested
-(* TODO: typeclasses like eq and sql_injectable *)
+(*
+val show_feedbackStatus : show feedbackStatus
+val read_feedbackStatus : read feedbackStatus
+val eq_feedbackStatus : eq feedbackStatus
+*)
 
-type feedback = {
-      Id : wid,
-      Created : time,
-      RequestedDate : time,
-      About : wid, (* who the feedback is about *)
-      Provider : wid, (* who writes the feedback *)
-      RequestedBy : wid,
-      Body : string, (* response *)
-      Guidance : string,
-      Status : feedbackStatus,
-      SendMail : bool,
-      LastUpdated : time
-}
+con feedback = [
+      Id = wid,
+      Created = time,
+      RequestedDate = time,
+      About = wid, (* who the feedback is about *)
+      Provider = wid, (* who writes the feedback *)
+      RequestedBy = wid,
+      Body = string, (* response *)
+      Guidance = string,
+      Status = string, (* TODO: use feedbackStatus. sql_injectable instance not possible? *)
+      SendMail = bool,
+      LastUpdated = time
+]
 
-table workers : {
-      Id : wid,
-      WName : string, (* name *)
-      IsManager : bool,
-      PrimaryWorkEmail : string
-} PRIMARY KEY Id
-table feedback : {
-      Id : wid,
-      Created : time,
-      RequestedDate : time,
-      About : wid, (* who the feedback is about *)
-      Provider : wid, (* who writes the feedback *)
-      RequestedBy : wid,
-      Body : string, (* response *)
-      Guidance : string,
-      Status : feedbackStatus,
-      SendMail : bool,
-      LastUpdated : time
-} PRIMARY KEY Id,
+table workers : worker
+  PRIMARY KEY Id
+constraint [Pkey] ~ workers_hidden_constraints
+
+table feedback : feedback
+  PRIMARY KEY Id,
   CONSTRAINT About FOREIGN KEY About REFERENCES workers(Id),
   CONSTRAINT Provider FOREIGN KEY Provider REFERENCES workers(Id),
   CONSTRAINT RequestedBy FOREIGN KEY RequestedBy REFERENCES workers(Id)
+
 table directReports : {
       Manager : wid,
       Report : wid
@@ -159,22 +152,21 @@ type feedbackRequestDisplay = {
 
 functor Make(M : AUTH) : sig
     structure Workers : sig
-        val list : transaction (list worker)
-        val manager : wid -> transaction worker
-        val reports : wid -> transaction (list worker)
+        val list : transaction (list $worker)
+        val manager : wid -> transaction $worker
+        val reports : wid -> transaction (list $worker)
     end
     structure Feedback : sig
-        val list : transaction (list feedbackRequestDisplay)
-        val assigned : transaction (list feedback)
-        val submitted : transaction (list feedback)
-        val completed : transaction (list feedback)
-        val submit : feedback -> transaction unit
-        val request : feedback -> transaction unit
+        val list : transaction (list $feedback)
+        val assigned : transaction (list $feedback)
+        val submitted : transaction (list $feedback)
+        val submit : $feedback -> transaction unit
+        val request : $feedback -> transaction unit
      end
     structure WorkdayApi : sig
         structure WorkersApi : sig
-            val get : wid -> transaction worker
-            val getAll : transaction (list worker)
+            val get : wid -> transaction $worker
+            val getAll : transaction (list $worker)
         end
         structure FeedbackApi : sig
             val get : wid -> transaction anytimeFeedback

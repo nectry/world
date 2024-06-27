@@ -29,16 +29,16 @@ signature AUTH = sig
     val token : transaction (option string)
 end
 
-(* Opaque type for all Workday IDs. *)
+(* Nonopaque type for all Workday IDs. *)
 type wid = string
 
-type worker = {
-     Id : wid,
-     WName : string, (* name *)
-     IsManager : bool,
-     PrimaryWorkEmail : string
-}
-val _ : json worker = json_record
+con worker = [
+     Id = wid,
+     WName = string, (* name *)
+     IsManager = bool,
+     PrimaryWorkEmail = string
+]
+val _ : json $worker = json_record
                       {Id = "id",
                        WName = "descriptor", (* name *)
                        IsManager = "isManager",
@@ -236,48 +236,43 @@ type feedbackDisplay = {
 *)
 (* my version *)
 datatype feedbackStatus = Complete | Requested
-(* TODO: typeclasses like eq and sql_injectable *)
+(*
+val show_feedbackStatus : show feedbackStatus =
+ fn s => case s of
+             Complete => "Complete"
+           | Requested => "Requested"
+val read_feedbackStatus : read feedbackStatus
+val eq_feedbackStatus : eq feedbackStatus
+*)
 
-type feedback = {
-      Id : wid,
-      Created : time,
-      RequestedDate : time,
-      About : wid, (* who the feedback is about *)
-      Provider : wid, (* who writes the feedback *)
-      RequestedBy : wid,
-      Body : string, (* response *)
-      Guidance : string,
-      Status : feedbackStatus,
-      SendMail : bool,
-      LastUpdated : time
-}
+con feedback = [
+      Id = wid,
+      Created = time,
+      RequestedDate = time,
+      About = wid, (* who the feedback is about *)
+      Provider = wid, (* who writes the feedback *)
+      RequestedBy = wid,
+      Body = string, (* response *)
+      Guidance = string,
+      Status = string, (* TODO: use feedbackStatus *)
+      SendMail = bool,
+      LastUpdated = time
+]
 
-table workers : {
-      Id : wid,
-      WName : string, (* name *)
-      IsManager : bool,
-      PrimaryWorkEmail : string
-} PRIMARY KEY Id
+table workers : worker
+  PRIMARY KEY Id
 con workers_hidden_constraints = []
 constraint [Pkey = [Id]] ~ workers_hidden_constraints
 
-table feedback : {
-      Id : wid,
-      Created : time,
-      RequestedDate : time,
-      About : wid, (* who the feedback is about *)
-      Provider : wid, (* who writes the feedback *)
-      RequestedBy : wid,
-      Body : string, (* response *)
-      Guidance : string,
-      Status : feedbackStatus,
-      SendMail : bool,
-      LastUpdated : time
-} PRIMARY KEY Id,
+table feedback : feedback
+  PRIMARY KEY Id,
   CONSTRAINT About FOREIGN KEY About REFERENCES workers(Id),
   CONSTRAINT Provider FOREIGN KEY Provider REFERENCES workers(Id),
   CONSTRAINT RequestedBy FOREIGN KEY RequestedBy REFERENCES workers(Id)
 con feedback_hidden_constraints = []
+(*constraint ([Pkey = [Id]] ++ [About = [], Provider = [], RequestedBy = []]) ~
+ feedback_hidden_constraints*)
+
 table directReports : {
       Manager : wid,
       Report : wid
@@ -301,6 +296,10 @@ type feedbackRequestDisplay = {
      Body : string, (* response body *)
      Status : feedbackStatus
 }
+
+fun toWorkdayFeedback (f : $feedback) : anytimeFeedback =
+    error <xml>TODO</xml>
+
 
 (* ************************************************************************** *)
 
@@ -360,21 +359,24 @@ functor Make(M : AUTH) = struct
 
     (* High-level interface for interacting with local Nectry tables. *)
     structure Workers = struct
-        val list : transaction (list worker) =
+        val list : transaction (list $worker) =
             queryL1 (SELECT * FROM workers)
 
-        fun manager (workerId : wid) : transaction worker =
-            mid <- oneRow (SELECT directReports.Manager FROM directReports
-                           WHERE directReports.Report = {[workerId]});
-            oneRow (SELECT * FROM workers
-                    WHERE workers.Id = {[mid]})
+        fun manager (workerId : wid) : transaction $worker =
+            res <- oneRow (SELECT workers.Id, workers.WName, workers.IsManager,
+                      workers.PrimaryWorkEmail
+                    FROM directReports JOIN workers
+                    ON workers.Id = directReports.Manager
+                    WHERE directReports.Report = {[workerId]});
+            return (res.Workers)
 
 
-        fun reports (managerId : wid) : transaction (list worker) =
-            queryL1 (SELECT workers.Id, workers.WName, workers.IsManager,
-            workers.PrimaryWorkEmail FROM directReports JOIN workers
+        fun reports (managerId : wid) : transaction (list $worker) =
+            res <- queryL (SELECT workers.Id, workers.WName, workers.IsManager,
+                    workers.PrimaryWorkEmail FROM directReports JOIN workers
                      ON workers.Id = directReports.Report
-                     WHERE directReports.Manager = {[managerId]})
+                     WHERE directReports.Manager = {[managerId]});
+            return (List.mp (fn r => r.Workers) res)
 
         (* TODO: historical relationship *)
 
@@ -388,37 +390,67 @@ functor Make(M : AUTH) = struct
          *)
     end
 
+    (* Interface to Workday API for making GET and POST requests. *)
+    structure WorkdayApi = struct
+        structure WorkersApi = struct
+            fun get (workerId : wid) : transaction $worker =
+                s <- api Common ("/workers/" ^ workerId);
+                return (fromJson s : response $worker).Data
+                (* TODO: maybe this should return option worker? *)
+
+            val getAll : transaction (list $worker) =
+                s <- api Common "/workers";
+                return (fromJson s : response (list $worker)).Data
+        end
+
+        structure FeedbackApi = struct
+            fun get (workerId : wid) : transaction anytimeFeedback =
+                s <- api PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedback");
+                return (fromJson s : response anytimeFeedback).Data
+
+            val getAll : transaction (list anytimeFeedback) =
+                workers <- Workers.list;
+                List.mapM (fn w => get w.Id) workers
+
+            fun post (response : anytimeFeedback) : transaction unit =
+                resp <- apiPost PerformanceEnablement ("/workers/" ^ response.ToWorker.Id) (toJson response);
+                return ()
+        end
+
+        structure DirectReportsApi = struct
+            fun get (managerId : wid) : transaction directReports =
+                s <- api Common ("/workers/" ^ managerId ^ "/directReports");
+                reports <- return (fromJson s : list $worker);
+                return {Manager = managerId,
+                        Reports = List.mp (fn w => w.Id) reports}
+        end
+    end
+
     (* High-level interface for interacting with local Nectry tables. *)
     structure Feedback = struct
-        val list : transaction (list feedback) =
-            (* TODO *)
-            error <xml>unimplemented</xml>
-            (* whoami *)
+        val list : transaction (list $feedback) =
+            queryL1 (SELECT * FROM feedback)
+            (* TODO: whoami *)
 
+        (* TODO: distinguish between anytime and solicited feedback lists *)
         (* TODO: could defunctionalize this by passing a set of flags:
            * Assigned | Submitted | Anytime | All
            * Incomplete (aka Outstanding) | Completed | All
          *)
-        val assigned : transaction (list feedback) =
-            (* TODO *)
-            error <xml>unimplemented</xml>
+        val assigned : transaction (list $feedback) =
+            queryL1 (SELECT * FROM feedback
+                     WHERE feedback.Status = "Requested")
 
         (* Requests you have submitted, regardless of status. Empty for non-managers. *)
-        val submitted : transaction (list feedback) =
-            (* TODO *)
-            error <xml>unimplemented</xml>
+        val submitted : transaction (list $feedback) =
+            queryL1 (SELECT * FROM feedback
+                     WHERE feedback.Status = "Complete")
 
-        (* Requests you have completed *)
-        val completed : transaction (list feedback) =
-            (* TODO *)
-            error <xml>unimplemented</xml>
+        fun submit (response : $feedback) : transaction unit =
+            WorkdayApi.FeedbackApi.post (toWorkdayFeedback response)
 
-        fun submit (response : feedback) : transaction unit =
-            (* TODO *)
-            error <xml>unimplemented</xml>
-
-        fun request (request : feedback) : transaction unit =
-            (* TODO *)
+        fun request (request : $feedback) : transaction unit =
+            (* TODO distinguish between anytime and solicited responses *)
             error <xml>unimplemented</xml>
 
         (* TODO: use this convenient function from Zoom for getting data from within a certain date range? *)
@@ -441,38 +473,5 @@ functor Make(M : AUTH) = struct
             *)
     end
 
-    (* Interface to Workday API for making GET and POST requests. *)
-    structure WorkdayApi = struct
-        structure WorkersApi = struct
-            fun get (workerId : wid) : transaction worker =
-                s <- api Common ("/workers/" ^ workerId);
-                return (fromJson s).Data
-                (* TODO: maybe this should return option worker? *)
-
-            val getAll : transaction (list worker) =
-                s <- api Common "/workers";
-                return (fromJson s).Data
-        end
-
-        structure FeedbackApi = struct
-            fun get (workerId : wid) : transaction anytimeFeedback =
-                s <- api PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedback");
-                return (fromJson s).Data
-
-            val getAll : transaction (list anytimeFeedback) =
-                workers <- Workers.list;
-                List.mapM (fn w => get w.Id) workers
-
-            (* TODO: post *)
-        end
-
-        structure DirectReportsApi = struct
-            fun get (managerId : wid) : transaction directReports =
-                s <- api Common ("/workers/" ^ managerId ^ "/directReports");
-                reports <- return (fromJson s : list worker);
-                return {Id = managerId,
-                        Reports = List.mp (fn w => w.Id) reports}
-        end
-    end
 
 end
