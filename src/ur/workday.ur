@@ -248,10 +248,10 @@ val eq_feedbackStatus : eq feedbackStatus
 con feedback = [
       Id = wid,
       Created = time,
-      RequestedDate = time,
+      RequestedDate = option time,
       About = wid, (* who the feedback is about *)
       Provider = wid, (* who writes the feedback *)
-      RequestedBy = wid,
+      RequestedBy = option wid,
       Body = string, (* response *)
       Guidance = string,
       Status = string, (* TODO: use feedbackStatus *)
@@ -289,7 +289,7 @@ constraint [Manager, Report] ~ directReports_hidden_constraints
  *)
 type feedbackRequestDisplay = {
      Id : wid, (* hidden in UI *)
-     RequestedDate : time,
+     RequestedDate : option time,
      About : string,
      Provider : wid,
      RequestedBy : wid,
