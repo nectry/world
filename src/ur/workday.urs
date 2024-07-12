@@ -120,6 +120,20 @@ con feedback = [
       LastUpdated = time
 ]
 
+con feedbackPost = [
+      Id = option wid,
+      Created = option time,
+      RequestedDate = option time,
+      About = wid,
+      Provider = option wid,
+      RequestedBy = option wid,
+      Body = option string,
+      Guidance = option string,
+      Status = option string,
+      SendMail = option bool,
+      LastUpdated = option time
+]
+
 table workers : worker
   PRIMARY KEY Id
 constraint [Pkey] ~ workers_hidden_constraints
@@ -160,8 +174,14 @@ functor Make(M : AUTH) : sig
         val list : transaction (list $feedback)
         val assigned : transaction (list $feedback)
         val submitted : transaction (list $feedback)
-        val submit : $feedback -> transaction unit
+
+        (*
+        val submit : $feedback -> transaction wid
         val request : $feedback -> transaction unit
+        *)
+
+        val post : unit -> transaction wid
+        val patch : unit -> transaction unit
      end
     structure WorkdayApi : sig
         structure WorkersApi : sig

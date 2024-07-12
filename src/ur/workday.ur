@@ -259,6 +259,20 @@ con feedback = [
       LastUpdated = time
 ]
 
+con feedbackPost = [
+      Id = option wid,
+      Created = option time,
+      RequestedDate = option time,
+      About = wid,
+      Provider = option wid,
+      RequestedBy = option wid,
+      Body = option string,
+      Guidance = option string,
+      Status = option string,
+      SendMail = option bool,
+      LastUpdated = option time
+]
+
 table workers : worker
   PRIMARY KEY Id
 con workers_hidden_constraints = []
@@ -296,10 +310,6 @@ type feedbackRequestDisplay = {
      Body : string, (* response body *)
      Status : feedbackStatus
 }
-
-fun toWorkdayFeedback (f : $feedback) : anytimeFeedback =
-    error <xml>TODO</xml>
-
 
 (* ************************************************************************** *)
 
@@ -446,12 +456,24 @@ functor Make(M : AUTH) = struct
             queryL1 (SELECT * FROM feedback
                      WHERE feedback.Status = "Complete")
 
+        (*
         fun submit (response : $feedback) : transaction unit =
             WorkdayApi.FeedbackApi.post (toWorkdayFeedback response)
 
         fun request (request : $feedback) : transaction unit =
             (* TODO distinguish between anytime and solicited responses *)
             error <xml>unimplemented</xml>
+        *)
+
+        fun post () : transaction wid =
+            (* resp <- WorkdayApi.FeedbackApi.post (toWorkdayFeedback obj); *)
+            i <- rpc rand;
+            return (show i)
+
+
+        fun patch () : transaction unit =
+            (* _ <- WorkdayApi.FeedbackApi.post (toWorkdayFeedback obj); *)
+            return ()
 
         (* TODO: use this convenient function from Zoom for getting data from within a certain date range? *)
         (*
