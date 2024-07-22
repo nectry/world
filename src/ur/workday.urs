@@ -9,7 +9,7 @@ con worker = [
      Id = wid,
      WName = string, (* name *)
      IsManager = bool,
-     PrimaryWorkEmail = string
+     PrimaryWorkEmail = option string
 ]
 type directReports = {
      Manager : wid, (* manager *)
@@ -19,7 +19,7 @@ type response object = {Data : object}
 
 type descriptor = {
      Id : wid,
-     Descriptor : string
+     Descriptor : option string
 }
 
 type comment = {
@@ -39,17 +39,16 @@ type attachment = {
 }
 
 type businessProcessParameters = {
-     Id : wid,
-     For : descriptor, (* could be another business process if this is a subprocess *)
-     TransactionStatus : descriptor,
-     Action : descriptor,
-     OverallBusinessProcess : descriptor,
-     Comment : string,
-     Comments : list comment,
-     WarningValidations : string,
-     Attachments : list attachment,
-     OverallStatus : string,
-     CriticalValidations : string,
+     For : option descriptor, (* could be another business process if this is a subprocess *)
+     TransactionStatus : option descriptor,
+     Action : option descriptor, (* required *)
+     OverallBusinessProcess : option descriptor,
+     Comment : option string,
+     Comments : option (list comment),
+     WarningValidations : option string,
+     Attachments : option (list attachment),
+     OverallStatus : option string,
+     CriticalValidations : option string,
 }
 type feedbackResponse = {
      Id : wid,
@@ -78,17 +77,17 @@ type relatedFeedback = {
 
 type anytimeFeedback = {
      Id : wid,
-     Preview : string,
-     ToWorker : descriptor, (* who the feedback is about *)
-     WorkersToNotify : list descriptor, (* always the direct manager *)
-     BusinessProcessParameters : businessProcessParameters,
-     HiddenFromWorker : bool, (* True if the feedback event is confidential between the feedback provider and the manager. Workers don't see confidential feedback. *)
-     HiddenFromManager : bool, (* True if the feedback event is private between the feedback provider and the worker. Private feedback isn't shared with managers. *)
-     Comment : string, (* actual feedback *)
-     FromWorker : descriptor, (* Identity of the responder. Only provided if the request asked to know the identity of the responder. *)
-     OverallStatus : string,
-     GivenDate : time,
-     ShowFeedbackProviderName: bool
+     Preview : option string,
+     ToWorker : option descriptor, (* who the feedback is about *)
+     WorkersToNotify : option (list descriptor), (* always the direct manager *)
+     BusinessProcessParameters : option businessProcessParameters,
+     HiddenFromWorker : option bool, (* True if the feedback event is confidential between the feedback provider and the manager. Workers don't see confidential feedback. *)
+     HiddenFromManager : option bool, (* True if the feedback event is private between the feedback provider and the worker. Private feedback isn't shared with managers. *)
+     Comment : option string, (* actual feedback *)
+     FromWorker : option descriptor, (* Identity of the responder. Only provided if the request asked to know the identity of the responder. *)
+     OverallStatus : option string,
+     GivenDate : option time,
+     ShowFeedbackProviderName: option bool,
      (* unused parameters: *)
      (*
      Badge : descriptor,
@@ -98,6 +97,7 @@ type anytimeFeedback = {
      RelatesTo : descriptor,
       *)
 }
+val json_anytimeFeedback : Json.json anytimeFeedback
 
 datatype feedbackStatus = Complete | Requested
 (*
@@ -119,19 +119,17 @@ con feedback = [
       SendMail = bool,
       LastUpdated = time
 ]
-
-con feedbackPost = [
-      Id = option wid,
-      Created = option time,
+con feedbackWithoutId = [
+      Created = time,
       RequestedDate = option time,
-      About = wid,
-      Provider = option wid,
+      About = wid, (* who the feedback is about *)
+      Provider = wid, (* who writes the feedback *)
       RequestedBy = option wid,
-      Body = option string,
-      Guidance = option string,
-      Status = option string,
-      SendMail = option bool,
-      LastUpdated = option time
+      Body = string, (* response *)
+      Guidance = string,
+      Status = string, (* TODO: use feedbackStatus. sql_injectable instance not possible? *)
+      SendMail = bool,
+      LastUpdated = time
 ]
 
 table workers : worker
@@ -150,20 +148,6 @@ table directReports : {
 } CONSTRAINT Manager FOREIGN KEY Manager REFERENCES workers(Id),
   CONSTRAINT Report FOREIGN KEY Report REFERENCES workers(Id)
 
-(* The user-facing version of feedback requests.
-   This is what workers see when they check their outstanding feedback
-   solicitations.
- *)
-type feedbackRequestDisplay = {
-     Id : wid, (* hidden in UI *)
-     RequestedDate : option time,
-     About : string,
-     Provider : wid,
-     RequestedBy : wid,
-     Body : string, (* response body *)
-     Status : feedbackStatus
-}
-
 functor Make(M : AUTH) : sig
     structure Workers : sig
         val list : transaction (list $worker)
@@ -180,7 +164,7 @@ functor Make(M : AUTH) : sig
         val request : $feedback -> transaction unit
         *)
 
-        val post : unit -> transaction wid
+        val post : $feedbackWithoutId -> transaction wid
         val patch : unit -> transaction unit
      end
     structure WorkdayApi : sig
@@ -189,8 +173,9 @@ functor Make(M : AUTH) : sig
             val getAll : transaction (list $worker)
         end
         structure FeedbackApi : sig
-            val get : wid -> transaction anytimeFeedback
+            val get : wid -> transaction (list anytimeFeedback)
             val getAll : transaction (list anytimeFeedback)
+            val post : $feedbackWithoutId -> transaction wid
         end
         structure DirectReportsApi : sig
             val get : wid -> transaction directReports

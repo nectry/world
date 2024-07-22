@@ -1,30 +1,6 @@
 open Json
 (* open Bootstrap *)
 
-(* FIXME *)
-(*
-structure Scope = struct
-    type t = Scopes.t [UserProfile, MeetingRead, MeetingWrite, WebinarRead, WebinarWrite, DashboardMeetingsRead]
-    val empty = Scopes.empty
-    val union = Scopes.union
-    val toString = Scopes.toString {UserProfile = "user_profile",
-                                    MeetingRead = "meeting:read",
-                                    MeetingWrite = "meeting:write",
-                                    WebinarRead = "webinar:read",
-                                    WebinarWrite = "webinar:write",
-                                    DashboardMeetingsRead = "dashboard_meetings:read:admin"}
-
-    val userProfile = Scopes.one [#UserProfile]
-    val meetingRead = Scopes.one [#MeetingRead]
-    val meetingWrite = Scopes.one [#MeetingWrite]
-    val webinarRead = Scopes.one [#WebinarRead]
-    val webinarWrite = Scopes.one [#WebinarWrite]
-    val dashboardMeetingsRead = Scopes.one [#DashboardMeetingsRead]
-
-    val readonly = Scopes.disjoint (union meetingWrite webinarWrite)
-end
-                  *)
-
 signature AUTH = sig
     val token : transaction (option string)
 end
@@ -36,13 +12,14 @@ con worker = [
      Id = wid,
      WName = string, (* name *)
      IsManager = bool,
-     PrimaryWorkEmail = string
+     PrimaryWorkEmail = option string
 ]
-val _ : json $worker = json_record
+val _ : json $worker = json_record_withOptional
+                           (* TODO *)
                       {Id = "id",
                        WName = "descriptor", (* name *)
-                       IsManager = "isManager",
-                       PrimaryWorkEmail = "primaryWorkEmail"}
+                       IsManager = "isManager"}
+                      {PrimaryWorkEmail = "primaryWorkEmail"}
 
 type directReports = {
      Manager : wid, (* manager *)
@@ -57,11 +34,12 @@ fun json_response [object] (_ : json object) : json (response object) =
 (* Generic way to refer to other objects by ID and provide a short preview string. *)
 type descriptor = {
      Id : wid,
-     Descriptor : string
+     Descriptor : option string
 }
 val _ : json descriptor =
-    json_record {Id = "id",
-                 Descriptor = "descriptor"}
+    json_record_withOptional
+        {Id = "id"}
+        {Descriptor = "descriptor"}
 
 type comment = {
      Date : time,
@@ -94,30 +72,30 @@ val _ : json attachment =
                  Category = "category"}
 
 type businessProcessParameters = {
-     Id : wid,
-     For : descriptor, (* could be another business process if this is a subprocess *)
-     TransactionStatus : descriptor,
-     Action : descriptor,
-     OverallBusinessProcess : descriptor,
-     Comment : string,
-     Comments : list comment,
-     WarningValidations : string,
-     Attachments : list attachment,
-     OverallStatus : string,
-     CriticalValidations : string,
+     For : option descriptor, (* could be another business process if this is a subprocess *)
+     TransactionStatus : option descriptor,
+     Action : option descriptor,
+     OverallBusinessProcess : option descriptor,
+     Comment : option string,
+     Comments : option (list comment),
+     WarningValidations : option string,
+     Attachments : option (list attachment),
+     OverallStatus : option string,
+     CriticalValidations : option string,
 }
 val _ : json businessProcessParameters =
-    json_record {Id = "id",
-                 For = "for",
-                 TransactionStatus = "transactionStatus",
-                 Action = "action",
-                 OverallBusinessProcess = "overallBusinessProcess",
-                 Comment = "comment",
-                 Comments = "comments",
-                 WarningValidations = "warningValidations",
-                 Attachments = "attachments",
-                 OverallStatus = "overallStatus",
-                 CriticalValidations = "criticalValidations"}
+    json_record_withOptional
+        {}
+        {For = "for",
+         Action = "action",
+         TransactionStatus = "transactionStatus",
+         OverallBusinessProcess = "overallBusinessProcess",
+         Comment = "comment",
+         Comments = "comments",
+         WarningValidations = "warningValidations",
+         Attachments = "attachments",
+         OverallStatus = "overallStatus",
+         CriticalValidations = "criticalValidations"}
 
 (* Individual response to feedback questions. *)
 type feedbackResponse = {
@@ -166,17 +144,17 @@ val _ : json relatedFeedback =
 
 type anytimeFeedback = {
      Id : wid,
-     Preview : string,
-     ToWorker : descriptor, (* who the feedback is about *)
-     WorkersToNotify : list descriptor, (* always the direct manager *)
-     BusinessProcessParameters : businessProcessParameters,
-     HiddenFromWorker : bool, (* True if the feedback event is confidential between the feedback provider and the manager. Workers don't see confidential feedback. *)
-     HiddenFromManager : bool, (* True if the feedback event is private between the feedback provider and the worker. Private feedback isn't shared with managers. *)
-     Comment : string, (* actual feedback *)
-     FromWorker : descriptor, (* Identity of the responder. Only provided if the request asked to know the identity of the responder. *)
-     OverallStatus : string,
-     GivenDate : time,
-     ShowFeedbackProviderName: bool
+     Preview : option string,
+     ToWorker : option descriptor, (* who the feedback is about *)
+     WorkersToNotify : option (list descriptor), (* always the direct manager *)
+     BusinessProcessParameters : option businessProcessParameters,
+     HiddenFromWorker : option bool, (* True if the feedback event is confidential between the feedback provider and the manager. Workers don't see confidential feedback. *)
+     HiddenFromManager : option bool, (* True if the feedback event is private between the feedback provider and the worker. Private feedback isn't shared with managers. *)
+     Comment : option string, (* actual feedback *)
+     FromWorker : option descriptor, (* Identity of the responder. Only provided if the request asked to know the identity of the responder. *)
+     OverallStatus : option string,
+     GivenDate : option time,
+     ShowFeedbackProviderName: option bool,
      (* unused parameters: *)
      (*
      Badge : descriptor,
@@ -186,19 +164,20 @@ type anytimeFeedback = {
      RelatesTo : descriptor,
       *)
 }
-val _ : json anytimeFeedback =
-    json_record {Id = "id",
-                 Preview = "descriptor",
-                 ToWorker = "toWorker",
-                 WorkersToNotify = "workersToNotify",
-                 BusinessProcessParameters = "businessProcessParameters",
-                 HiddenFromWorker = "hiddenFromWorker",
-                 HiddenFromManager = "hiddenFromManager",
-                 Comment = "comment",
-                 FromWorker = "fromWorker",
-                 OverallStatus = "overallStatus",
-                 GivenDate = "feedbackGivenDate",
-                 ShowFeedbackProviderName = "showFeedbackProviderName"
+val json_anytimeFeedback : json anytimeFeedback =
+    json_record_withOptional
+        {Id = "id"}
+        {Preview = "descriptor",
+         ToWorker = "toWorker",
+         WorkersToNotify = "workersToNotify",
+         BusinessProcessParameters = "businessProcessParameters",
+         HiddenFromWorker = "hiddenFromWorker",
+         HiddenFromManager = "hiddenFromManager",
+         Comment = "comment",
+         FromWorker = "fromWorker",
+         OverallStatus = "overallStatus",
+         GivenDate = "feedbackGivenDate",
+         ShowFeedbackProviderName = "showFeedbackProviderName"
                  (*
                  RelatesTo = "relatesTo",
                  Badge = "badge",
@@ -207,34 +186,6 @@ val _ : json anytimeFeedback =
                   *)
                 }
 
-(* Jane Street version *)
-(*
-table feedback : {
-      CreatedMoment : time,
-      WorkdayId : wid,
-      Subject : string, (* who the feedback is about *)
-      Body : string, (* response *)
-      Date : time,
-      Request : string, (* who the feedback is about *)
-      Guidance : string,
-      Provider : string, (* who writes the feedback *)
-      RequestedBy : string,
-      RequestedDate : time,
-      Status : string,
-      SendMail : bool,
-      LastFunctionallyUpdated : time
-} PRIMARY KEY WorkdayId
-
-type feedbackDisplay = {
-      CreatedMoment : time,
-      About : string,
-      From : string,
-      RequestedBy : string,
-      Comments : string,
-      LastFunctionallyUpdated : time
-}
-*)
-(* my version *)
 datatype feedbackStatus = Complete | Requested
 (*
 val show_feedbackStatus : show feedbackStatus =
@@ -259,18 +210,17 @@ con feedback = [
       LastUpdated = time
 ]
 
-con feedbackPost = [
-      Id = option wid,
-      Created = option time,
+con feedbackWithoutId = [
+      Created = time,
       RequestedDate = option time,
-      About = wid,
-      Provider = option wid,
+      About = wid, (* who the feedback is about *)
+      Provider = wid, (* who writes the feedback *)
       RequestedBy = option wid,
-      Body = option string,
-      Guidance = option string,
-      Status = option string,
-      SendMail = option bool,
-      LastUpdated = option time
+      Body = string, (* response *)
+      Guidance = string,
+      Status = string, (* TODO: use feedbackStatus *)
+      SendMail = bool,
+      LastUpdated = time
 ]
 
 table workers : worker
@@ -294,22 +244,6 @@ table directReports : {
   CONSTRAINT Report FOREIGN KEY Report REFERENCES workers(Id)
 con directReports_hidden_constraints = []
 constraint [Manager, Report] ~ directReports_hidden_constraints
-
-(* TODO: url table? *)
-
-(* The user-facing version of feedback requests.
-   This is what workers see when they check their outstanding feedback
-   solicitations.
- *)
-type feedbackRequestDisplay = {
-     Id : wid, (* hidden in UI *)
-     RequestedDate : option time,
-     About : string,
-     Provider : wid,
-     RequestedBy : wid,
-     Body : string, (* response body *)
-     Status : feedbackStatus
-}
 
 (* ************************************************************************** *)
 
@@ -414,25 +348,70 @@ functor Make(M : AUTH) = struct
         end
 
         structure FeedbackApi = struct
-            fun get (workerId : wid) : transaction anytimeFeedback =
-                s <- api PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedback");
-                return (fromJson s : response anytimeFeedback).Data
+            fun get (workerId : wid) : transaction (list anytimeFeedback) =
+                s <- api PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedbackEvents");
+                workers <- Monad.mp (List.mp (fn w => w.Id)) Workers.list;
+                return (
+                  (* Filter out feedback where the provider isn't in the workers table. *)
+                  (* HACK *)
+                  (* TODO: can we guarantee this doesn't happen? *)
+                  List.filter
+                    (fn fb => List.mem (Option.getOrError <xml>no</xml> fb.FromWorker).Id workers)
+                    (fromJson s : response (list anytimeFeedback)).Data)
 
             val getAll : transaction (list anytimeFeedback) =
                 workers <- Workers.list;
-                List.mapM (fn w => get w.Id) workers
+                List.mapConcatM (fn w => get w.Id) workers
 
-            fun post (response : anytimeFeedback) : transaction unit =
-                resp <- apiPost PerformanceEnablement ("/workers/" ^ response.ToWorker.Id) (toJson response);
-                return ()
+            fun parseSoap (xmlString : string) : wid =
+                (* HACK: actually parse XML *)
+                case String.ssplit {Haystack = xmlString, Needle = "<wd:ID wd:type=\"WID\">"} of
+                    None => error <xml>Could not find ID in response: {[xmlString]}</xml>
+                  | Some (pre, post) =>
+                    case String.split post #"<" of
+                        None => error <xml>Badly formed response: {[xmlString]}</xml>
+                      | Some (pre, post) => pre
+            fun post (request : $feedbackWithoutId) : transaction wid =
+                let fun toSoapXml request =
+                        "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\">
+    <env:Body>
+        <bsvc:Give_Feedback_Request xmlns:bsvc=\"urn:com.workday/bsvc\" bsvc:version=\"v42.2\">
+            <bsvc:Give_Feedback_Data>
+                <bsvc:From_Worker_Reference>
+                    <bsvc:ID bsvc:type=\"WID\">" ^ request.Provider ^ "</bsvc:ID>
+                </bsvc:From_Worker_Reference>
+                <bsvc:To_Workers_Reference>
+                    <bsvc:ID bsvc:type=\"WID\">" ^ request.About ^ "</bsvc:ID>
+                </bsvc:To_Workers_Reference>
+                <bsvc:Comment>" ^ request.Body ^ "</bsvc:Comment>
+                <bsvc:Show_Name>true</bsvc:Show_Name>
+                <bsvc:Confidential>true</bsvc:Confidential>
+            </bsvc:Give_Feedback_Data>
+        </bsvc:Give_Feedback_Request>
+    </env:Body>
+</env:Envelope>"
+        (* TODO: extra information: status, dates, requestedBy, etc *)
+
+                in
+                  body <- return (toSoapXml request);
+                  tok <- token;
+                  debug tok;
+                  url <- return "https://wcpdev-services1.wd101.myworkday.com/ccx/service/janestreet_wcpdev1/Talent/v42.2";
+                  resp <- logged (WorldFfi.post (bless url) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/xml; charset=utf-8") body);
+                  return (parseSoap resp)
+                end
         end
 
         structure DirectReportsApi = struct
             fun get (managerId : wid) : transaction directReports =
                 s <- api Common ("/workers/" ^ managerId ^ "/directReports");
-                reports <- return (fromJson s : list $worker);
+                reports <- return (fromJson s : response (list $worker)).Data;
+                workers <- Monad.mp (List.mp (fn w => w.Id)) Workers.list;
                 return {Manager = managerId,
-                        Reports = List.mp (fn w => w.Id) reports}
+                        Reports = List.filter
+                                      (fn i => List.mem i workers)
+                                      (List.mp (fn w => w.Id) reports)}
         end
     end
 
@@ -465,13 +444,14 @@ functor Make(M : AUTH) = struct
             error <xml>unimplemented</xml>
         *)
 
-        fun post () : transaction wid =
-            (* resp <- WorkdayApi.FeedbackApi.post (toWorkdayFeedback obj); *)
-            i <- rpc rand;
-            return (show i)
+        fun post (obj : $feedbackWithoutId) : transaction wid =
+            WorkdayApi.FeedbackApi.post obj
+            (*i <- rpc rand;
+            return (show i)*)
 
 
         fun patch () : transaction unit =
+            (* TODO: where in Give Feedback SOAP request do we put the ID? *)
             (* _ <- WorkdayApi.FeedbackApi.post (toWorkdayFeedback obj); *)
             return ()
 
