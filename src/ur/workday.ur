@@ -27,9 +27,9 @@ type directReports = {
 }
 
 (* could be anonymous instance by inlining the record structure *)
-type response object = {Data : object}
+type response object = {Data : object, Total : int}
 fun json_response [object] (_ : json object) : json (response object) =
-    json_record {Data = "data"}
+    json_record {Data = "data", Total = "total"}
 
 (* Generic way to refer to other objects by ID and provide a short preview string. *)
 type descriptor = {
@@ -223,28 +223,6 @@ con feedbackWithoutId = [
       LastUpdated = time
 ]
 
-table workers : worker
-  PRIMARY KEY Id
-con workers_hidden_constraints = []
-constraint [Pkey = [Id]] ~ workers_hidden_constraints
-
-table feedback : feedback
-  PRIMARY KEY Id,
-  CONSTRAINT About FOREIGN KEY About REFERENCES workers(Id),
-  CONSTRAINT Provider FOREIGN KEY Provider REFERENCES workers(Id),
-  CONSTRAINT RequestedBy FOREIGN KEY RequestedBy REFERENCES workers(Id)
-con feedback_hidden_constraints = []
-(*constraint ([Pkey = [Id]] ++ [About = [], Provider = [], RequestedBy = []]) ~
- feedback_hidden_constraints*)
-
-table directReports : {
-      Manager : wid,
-      Report : wid
-} CONSTRAINT Manager FOREIGN KEY Manager REFERENCES workers(Id),
-  CONSTRAINT Report FOREIGN KEY Report REFERENCES workers(Id)
-con directReports_hidden_constraints = []
-constraint [Manager, Report] ~ directReports_hidden_constraints
-
 (* ************************************************************************** *)
 
 functor Make(M : AUTH) = struct
@@ -259,6 +237,7 @@ functor Make(M : AUTH) = struct
       * allow manager to see the feedbacks they've requested
       * allow the subordinate to see the feedback they've been assigned
      *)
+
 
     val token =
         toko <- token;
@@ -301,38 +280,22 @@ functor Make(M : AUTH) = struct
           logged (WorldFfi.post (bless (prefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/json") body)
         end
 
-    (* High-level interface for interacting with local Nectry tables. *)
-    structure Workers = struct
-        val list : transaction (list $worker) =
-            queryL1 (SELECT * FROM workers)
-
-        fun manager (workerId : wid) : transaction $worker =
-            res <- oneRow (SELECT workers.Id, workers.WName, workers.IsManager,
-                      workers.PrimaryWorkEmail
-                    FROM directReports JOIN workers
-                    ON workers.Id = directReports.Manager
-                    WHERE directReports.Report = {[workerId]});
-            return (res.Workers)
-
-
-        fun reports (managerId : wid) : transaction (list $worker) =
-            res <- queryL (SELECT workers.Id, workers.WName, workers.IsManager,
-                    workers.PrimaryWorkEmail FROM directReports JOIN workers
-                     ON workers.Id = directReports.Report
-                     WHERE directReports.Manager = {[managerId]});
-            return (List.mp (fn r => r.Workers) res)
-
-        (* TODO: historical relationship *)
-
-        (* TODO:
-         * list feedback you've requested
-         * list feedback assigned to you
-         * get guidance text
-         * "solicit feedback" page
-         * present page of feedback submission form ("provide feedback")
-         * only present the page (url has the request ID) if the "provider" matches the whoami
-         *)
-    end
+    (* NOTE: could we improve performance by using tables instead of lists? do we need to? *)
+    (* NOTE: upstream this to a world library function *)
+    fun depaginate [object] (j : json object) (limit : int) (service : service) (endpoint : string) : transaction (list object) =
+        let fun depaginate' (offset : int) =
+          jsonResponse <- api service (endpoint ^ "?limit=" ^ (show limit) ^ "&offset=" ^ (show offset));
+          let val resp = (fromJson jsonResponse : response (list object))
+          in
+            if offset >= resp.Total
+            then return resp.Data
+            else
+                rest <- depaginate' (offset + limit);
+                return (List.append resp.Data rest)
+          end
+        in
+          depaginate' 0
+        end
 
     (* Interface to Workday API for making GET and POST requests. *)
     structure WorkdayApi = struct
@@ -343,25 +306,22 @@ functor Make(M : AUTH) = struct
                 (* TODO: maybe this should return option worker? *)
 
             val getAll : transaction (list $worker) =
-                s <- api Common "/workers";
-                return (fromJson s : response (list $worker)).Data
+                depaginate 100 Common "/workers"
         end
 
         structure FeedbackApi = struct
             fun get (workerId : wid) : transaction (list anytimeFeedback) =
-                s <- api PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedbackEvents");
-                workers <- Monad.mp (List.mp (fn w => w.Id)) Workers.list;
-                return (
+                depaginate 100 PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedbackEvents")
+                (*return (
                   (* Filter out feedback where the provider isn't in the workers table. *)
                   (* HACK *)
                   (* TODO: can we guarantee this doesn't happen? *)
-                  List.filter
-                    (fn fb => List.mem (Option.getOrError <xml>no</xml> fb.FromWorker).Id workers)
-                    (fromJson s : response (list anytimeFeedback)).Data)
+                  (*List.filter
+                    (fn fb => List.mem (Option.getOrError <xml>no</xml> fb.FromWorker).Id workers)*)
+                    (fromJson s : response (list anytimeFeedback)).Data)*)
 
-            val getAll : transaction (list anytimeFeedback) =
-                workers <- Workers.list;
-                List.mapConcatM (fn w => get w.Id) workers
+            fun getAll (workers : list wid) : transaction (list anytimeFeedback) =
+                List.mapConcatM get workers
 
             fun parseSoap (xmlString : string) : wid =
                 (* HACK: actually parse XML *)
@@ -373,6 +333,7 @@ functor Make(M : AUTH) = struct
                       | Some (pre, post) => pre
             fun post (request : $feedbackWithoutId) : transaction wid =
                 let fun toSoapXml request =
+                        (* FIXME: escape user-provided values *)
                         "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\">
     <env:Body>
@@ -405,75 +366,13 @@ functor Make(M : AUTH) = struct
 
         structure DirectReportsApi = struct
             fun get (managerId : wid) : transaction directReports =
-                s <- api Common ("/workers/" ^ managerId ^ "/directReports");
+                s <- api Common ("/workers/" ^ managerId ^ "/directReports?limit=100"); (* HACK: proper depagination; because maybe someone has over 100 direct reports *)
                 reports <- return (fromJson s : response (list $worker)).Data;
-                workers <- Monad.mp (List.mp (fn w => w.Id)) Workers.list;
                 return {Manager = managerId,
-                        Reports = List.filter
-                                      (fn i => List.mem i workers)
+                        Reports = (*List.filter
+                                      (fn i => List.mem i workers)*)
                                       (List.mp (fn w => w.Id) reports)}
         end
     end
-
-    (* High-level interface for interacting with local Nectry tables. *)
-    structure Feedback = struct
-        val list : transaction (list $feedback) =
-            queryL1 (SELECT * FROM feedback)
-            (* TODO: whoami *)
-
-        (* TODO: distinguish between anytime and solicited feedback lists *)
-        (* TODO: could defunctionalize this by passing a set of flags:
-           * Assigned | Submitted | Anytime | All
-           * Incomplete (aka Outstanding) | Completed | All
-         *)
-        val assigned : transaction (list $feedback) =
-            queryL1 (SELECT * FROM feedback
-                     WHERE feedback.Status = "Requested")
-
-        (* Requests you have submitted, regardless of status. Empty for non-managers. *)
-        val submitted : transaction (list $feedback) =
-            queryL1 (SELECT * FROM feedback
-                     WHERE feedback.Status = "Complete")
-
-        (*
-        fun submit (response : $feedback) : transaction unit =
-            WorkdayApi.FeedbackApi.post (toWorkdayFeedback response)
-
-        fun request (request : $feedback) : transaction unit =
-            (* TODO distinguish between anytime and solicited responses *)
-            error <xml>unimplemented</xml>
-        *)
-
-        fun post (obj : $feedbackWithoutId) : transaction wid =
-            WorkdayApi.FeedbackApi.post obj
-            (*i <- rpc rand;
-            return (show i)*)
-
-
-        fun patch () : transaction unit =
-            (* TODO: where in Give Feedback SOAP request do we put the ID? *)
-            (* _ <- WorkdayApi.FeedbackApi.post (toWorkdayFeedback obj); *)
-            return ()
-
-        (* TODO: use this convenient function from Zoom for getting data from within a certain date range? *)
-        (*
-        val listPast =
-            now <- now;
-            let
-                fun daysEarlier days = timef "%Y-%m-%d" (addSeconds now (days * (-24) * 60 * 60))
-
-                fun grabChunk daysInPast acc =
-                    if daysInPast > 30 * 6 then
-                        return acc
-                    else
-                        ms <- apiPaged "meetings" ("metrics/meetings?type=past&from=" ^ daysEarlier daysInPast
-                                                   ^ "&to=" ^ daysEarlier (daysInPast - 30));
-                        grabChunk (daysInPast + 30) (List.append (List.mp pastMeetingIn ms) acc)
-            in
-                grabChunk 30 []
-            end
-            *)
-    end
-
 
 end

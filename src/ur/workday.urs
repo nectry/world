@@ -15,7 +15,7 @@ type directReports = {
      Manager : wid, (* manager *)
      Reports : list wid (* list of worker ids *)
 }
-type response object = {Data : object}
+type response object = {Data : object, Total : int}
 
 type descriptor = {
      Id : wid,
@@ -132,41 +132,7 @@ con feedbackWithoutId = [
       LastUpdated = time
 ]
 
-table workers : worker
-  PRIMARY KEY Id
-constraint [Pkey] ~ workers_hidden_constraints
-
-table feedback : feedback
-  PRIMARY KEY Id,
-  CONSTRAINT About FOREIGN KEY About REFERENCES workers(Id),
-  CONSTRAINT Provider FOREIGN KEY Provider REFERENCES workers(Id),
-  CONSTRAINT RequestedBy FOREIGN KEY RequestedBy REFERENCES workers(Id)
-
-table directReports : {
-      Manager : wid,
-      Report : wid
-} CONSTRAINT Manager FOREIGN KEY Manager REFERENCES workers(Id),
-  CONSTRAINT Report FOREIGN KEY Report REFERENCES workers(Id)
-
 functor Make(M : AUTH) : sig
-    structure Workers : sig
-        val list : transaction (list $worker)
-        val manager : wid -> transaction $worker
-        val reports : wid -> transaction (list $worker)
-    end
-    structure Feedback : sig
-        val list : transaction (list $feedback)
-        val assigned : transaction (list $feedback)
-        val submitted : transaction (list $feedback)
-
-        (*
-        val submit : $feedback -> transaction wid
-        val request : $feedback -> transaction unit
-        *)
-
-        val post : $feedbackWithoutId -> transaction wid
-        val patch : unit -> transaction unit
-     end
     structure WorkdayApi : sig
         structure WorkersApi : sig
             val get : wid -> transaction $worker
@@ -174,7 +140,7 @@ functor Make(M : AUTH) : sig
         end
         structure FeedbackApi : sig
             val get : wid -> transaction (list anytimeFeedback)
-            val getAll : transaction (list anytimeFeedback)
+            val getAll : list wid -> transaction (list anytimeFeedback)
             val post : $feedbackWithoutId -> transaction wid
         end
         structure DirectReportsApi : sig
