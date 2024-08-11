@@ -2,19 +2,28 @@ signature AUTH = sig
     val token : transaction (option string)
 end
 
-(* Nonopaque type for all Workday IDs. *)
-type wid = string
+type instance
+val read_instance : read instance
+val show_instance : show instance
 
-con worker = [
-     Id = wid,
-     WName = string, (* name *)
-     IsManager = bool,
-     PrimaryWorkEmail = option string
-]
+(* Opaque type for all Workday IDs. *)
+type wid = string
+val show_wid : show wid
+val ord_wid : ord wid
+val inj_wid : sql_injectable_prim wid
+
+type worker = {
+     Id : wid,
+     WName : string, (* name *)
+     IsManager : bool,
+     PrimaryWorkEmail : option string
+}
+
 type directReports = {
      Manager : wid, (* manager *)
      Reports : list wid (* list of worker ids *)
 }
+
 type response object = {Data : object, Total : int}
 
 type descriptor = {
@@ -106,45 +115,31 @@ val read_feedbackStatus : read feedbackStatus
 val eq_feedbackStatus : eq feedbackStatus
 *)
 
-con feedback = [
-      Id = wid,
-      Created = time,
-      RequestedDate = option time,
-      About = wid, (* who the feedback is about *)
-      Provider = wid, (* who writes the feedback *)
-      RequestedBy = option wid,
-      Body = string, (* response *)
-      Guidance = string,
-      Status = string, (* TODO: use feedbackStatus. sql_injectable instance not possible? *)
-      SendMail = bool,
-      LastUpdated = time
-]
-con feedbackWithoutId = [
-      Created = time,
-      RequestedDate = option time,
-      About = wid, (* who the feedback is about *)
-      Provider = wid, (* who writes the feedback *)
-      RequestedBy = option wid,
-      Body = string, (* response *)
-      Guidance = string,
-      Status = string, (* TODO: use feedbackStatus. sql_injectable instance not possible? *)
-      SendMail = bool,
-      LastUpdated = time
-]
+type feedback = {
+      Wid : option wid,
+      Created : time,
+      RequestedDate : option time,
+      About : wid, (* who the feedback is about *)
+      Provider : wid, (* who writes the feedback *)
+      RequestedBy : option wid,
+      Body : string, (* response *)
+      Guidance : string,
+      Status : string, (* TODO: use feedbackStatus. sql_injectable instance not possible? *)
+      SendMail : bool,
+      LastUpdated : time
+}
 
 functor Make(M : AUTH) : sig
-    structure WorkdayApi : sig
-        structure WorkersApi : sig
-            val get : wid -> transaction $worker
-            val getAll : transaction (list $worker)
-        end
-        structure FeedbackApi : sig
-            val get : wid -> transaction (list anytimeFeedback)
-            val getAll : list wid -> transaction (list anytimeFeedback)
-            val post : $feedbackWithoutId -> transaction wid
-        end
-        structure DirectReportsApi : sig
-            val get : wid -> transaction directReports
-        end
+    structure Workers : sig
+        val get : instance -> wid -> transaction worker
+        val getAll : instance -> transaction (list worker)
+    end
+    structure Feedback : sig
+        val get : instance -> wid -> transaction (list anytimeFeedback)
+        val getAll : instance -> list wid -> transaction (list anytimeFeedback)
+        val post : instance -> feedback -> transaction wid
+    end
+    structure DirectReports : sig
+        val get : instance -> wid -> transaction directReports
     end
 end

@@ -1,20 +1,27 @@
 open Json
-(* open Bootstrap *)
 
 signature AUTH = sig
     val token : transaction (option string)
 end
 
-(* Nonopaque type for all Workday IDs. *)
-type wid = string
+type instance = string
+val read_instance = _
+val show_instance = _
 
-con worker = [
-     Id = wid,
-     WName = string, (* name *)
-     IsManager = bool,
-     PrimaryWorkEmail = option string
-]
-val _ : json $worker = json_record_withOptional
+(* Opaque type for all Workday IDs. *)
+type wid = string
+val show_wid = _
+val ord_wid = mkOrd {Lt = fn a b => (readError a : int) < readError b,
+                     Le = fn a b => (readError a : int) <= readError b}
+val inj_wid = _
+
+type worker = {
+     Id : wid,
+     WName : string, (* name *)
+     IsManager : bool,
+     PrimaryWorkEmail : option string
+}
+val _ : json worker = json_record_withOptional
                            (* TODO *)
                       {Id = "id",
                        WName = "descriptor", (* name *)
@@ -196,48 +203,22 @@ val read_feedbackStatus : read feedbackStatus
 val eq_feedbackStatus : eq feedbackStatus
 *)
 
-con feedback = [
-      Id = wid,
-      Created = time,
-      RequestedDate = option time,
-      About = wid, (* who the feedback is about *)
-      Provider = wid, (* who writes the feedback *)
-      RequestedBy = option wid,
-      Body = string, (* response *)
-      Guidance = string,
-      Status = string, (* TODO: use feedbackStatus *)
-      SendMail = bool,
-      LastUpdated = time
-]
-
-con feedbackWithoutId = [
-      Created = time,
-      RequestedDate = option time,
-      About = wid, (* who the feedback is about *)
-      Provider = wid, (* who writes the feedback *)
-      RequestedBy = option wid,
-      Body = string, (* response *)
-      Guidance = string,
-      Status = string, (* TODO: use feedbackStatus *)
-      SendMail = bool,
-      LastUpdated = time
-]
-
-(* ************************************************************************** *)
+type feedback = {
+      Wid : option wid,
+      Created : time,
+      RequestedDate : option time,
+      About : wid, (* who the feedback is about *)
+      Provider : wid, (* who writes the feedback *)
+      RequestedBy : option wid,
+      Body : string, (* response *)
+      Guidance : string,
+      Status : string, (* TODO: use feedbackStatus *)
+      SendMail : bool,
+      LastUpdated : time
+}
 
 functor Make(M : AUTH) = struct
     open M
-
-    (*
-     desired features:
-      * allow manager to request feedback of their subordinates on each other
-      * notify the subordinate of this request (by email)
-      * allow the subordinate to submit the feedback
-      * notify the manager when feedback is submitted
-      * allow manager to see the feedbacks they've requested
-      * allow the subordinate to see the feedback they've been assigned
-     *)
-
 
     val token =
         toko <- token;
@@ -245,46 +226,40 @@ functor Make(M : AUTH) = struct
             None => error <xml>You must be logged into Workday to use this feature.</xml>
           | Some tok => return tok
 
-    val prefixCommon = "https://wcpdev-services1.wd101.myworkday.com/ccx/api/v1/janestreet_wcpdev1"
-    val prefixPerformanceEnablement = "https://wcpdev-services1.wd101.myworkday.com/ccx/api/performanceEnablement/v5/janestreet_wcpdev1"
-    datatype service = Common | PerformanceEnablement
-    fun urlOfService service =
-        case service of
-          Common => prefixCommon
-        | PerformanceEnablement => prefixPerformanceEnablement
+    datatype service = Common | PerformanceEnablement | Soap
+    fun prefix service inst =
+        let val suffix =
+          case service of
+            Common => "api/v1/"
+          | PerformanceEnablement => "api/performanceEnablement/v5/"
+          | Soap => "service/"
+        in "https://" ^ "wcpdev-services1.wd101.myworkday.com/" ^ "ccx/" ^ suffix ^ inst
+        end
 
     fun logged [a] (_ : show a) (t : transaction a) =
         v <- t;
         debug ("Workday response: " ^ show v);
         return v
 
-    fun api service url =
-        let val prefix = urlOfService service in
-          tok <- token;
-          debug ("Workday GET: " ^ prefix ^ url);
-          logged (WorldFfi.get (bless (prefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) False)
-        end
+    fun api url =
+        tok <- token;
+        debug ("Workday GET: " ^ url);
+        logged (WorldFfi.get (bless url) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) False)
 
-    fun apiOpt service url =
-        let val prefix = urlOfService service in
-          tok <- token;
-          debug ("Workday GET: " ^ prefix ^ url);
-          logged (WorldFfi.getOpt (bless (prefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) False)
-        end
+    fun apiOpt url =
+        tok <- token;
+        debug ("Workday GET: " ^ url);
+        logged (WorldFfi.getOpt (bless url) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) False)
 
-    fun apiPost service url body =
-        let val prefix = urlOfService service in
-          tok <- token;
-          debug ("Workday POST: " ^ prefix ^ url);
-          debug ("Workday body: " ^ body);
-          logged (WorldFfi.post (bless (prefix ^ url)) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/json") body)
-        end
+    fun apiPost url body =
+        tok <- token;
+        debug ("Workday POST: " ^ url);
+        debug ("Workday body: " ^ body);
+        logged (WorldFfi.post (bless url) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/json") body)
 
-    (* NOTE: could we improve performance by using tables instead of lists? do we need to? *)
-    (* NOTE: upstream this to a world library function *)
-    fun depaginate [object] (j : json object) (limit : int) (service : service) (endpoint : string) : transaction (list object) =
+    fun depaginate [object] (j : json object) (limit : int) (service : service) (inst : instance) (endpoint : string) : transaction (list object) =
         let fun depaginate' (offset : int) =
-          jsonResponse <- api service (endpoint ^ "?limit=" ^ (show limit) ^ "&offset=" ^ (show offset));
+          jsonResponse <- api ((prefix service inst) ^ endpoint ^ "?limit=" ^ (show limit) ^ "&offset=" ^ (show offset));
           let val resp = (fromJson jsonResponse : response (list object))
           in
             if offset >= resp.Total
@@ -297,82 +272,71 @@ functor Make(M : AUTH) = struct
           depaginate' 0
         end
 
-    (* Interface to Workday API for making GET and POST requests. *)
-    structure WorkdayApi = struct
-        structure WorkersApi = struct
-            fun get (workerId : wid) : transaction $worker =
-                s <- api Common ("/workers/" ^ workerId);
-                return (fromJson s : response $worker).Data
-                (* TODO: maybe this should return option worker? *)
+    structure Workers = struct
+        fun get inst (workerId : wid) : transaction worker =
+            s <- api ((prefix Common inst) ^ "/workers/" ^ Urls.urlencode workerId);
+            return (fromJson s : response worker).Data
+            (* TODO: maybe this should return option worker? *)
 
-            val getAll : transaction (list $worker) =
-                depaginate 100 Common "/workers"
-        end
-
-        structure FeedbackApi = struct
-            fun get (workerId : wid) : transaction (list anytimeFeedback) =
-                depaginate 100 PerformanceEnablement ("/workers/" ^ workerId ^ "/anytimeFeedbackEvents")
-                (*return (
-                  (* Filter out feedback where the provider isn't in the workers table. *)
-                  (* HACK *)
-                  (* TODO: can we guarantee this doesn't happen? *)
-                  (*List.filter
-                    (fn fb => List.mem (Option.getOrError <xml>no</xml> fb.FromWorker).Id workers)*)
-                    (fromJson s : response (list anytimeFeedback)).Data)*)
-
-            fun getAll (workers : list wid) : transaction (list anytimeFeedback) =
-                List.mapConcatM get workers
-
-            fun parseSoap (xmlString : string) : wid =
-                (* HACK: actually parse XML *)
-                case String.ssplit {Haystack = xmlString, Needle = "<wd:ID wd:type=\"WID\">"} of
-                    None => error <xml>Could not find ID in response: {[xmlString]}</xml>
-                  | Some (pre, post) =>
-                    case String.split post #"<" of
-                        None => error <xml>Badly formed response: {[xmlString]}</xml>
-                      | Some (pre, post) => pre
-            fun post (request : $feedbackWithoutId) : transaction wid =
-                let fun toSoapXml request =
-                        (* FIXME: escape user-provided values *)
-                        "<?xml version=\"1.0\" encoding=\"utf-8\"?>
-<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\">
-    <env:Body>
-        <bsvc:Give_Feedback_Request xmlns:bsvc=\"urn:com.workday/bsvc\" bsvc:version=\"v42.2\">
-            <bsvc:Give_Feedback_Data>
-                <bsvc:From_Worker_Reference>
-                    <bsvc:ID bsvc:type=\"WID\">" ^ request.Provider ^ "</bsvc:ID>
-                </bsvc:From_Worker_Reference>
-                <bsvc:To_Workers_Reference>
-                    <bsvc:ID bsvc:type=\"WID\">" ^ request.About ^ "</bsvc:ID>
-                </bsvc:To_Workers_Reference>
-                <bsvc:Comment>" ^ request.Body ^ "</bsvc:Comment>
-                <bsvc:Show_Name>true</bsvc:Show_Name>
-                <bsvc:Confidential>true</bsvc:Confidential>
-            </bsvc:Give_Feedback_Data>
-        </bsvc:Give_Feedback_Request>
-    </env:Body>
-</env:Envelope>"
-        (* TODO: extra information: status, dates, requestedBy, etc *)
-
-                in
-                  body <- return (toSoapXml request);
-                  tok <- token;
-                  debug tok;
-                  url <- return "https://wcpdev-services1.wd101.myworkday.com/ccx/service/janestreet_wcpdev1/Talent/v42.2";
-                  resp <- logged (WorldFfi.post (bless url) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/xml; charset=utf-8") body);
-                  return (parseSoap resp)
-                end
-        end
-
-        structure DirectReportsApi = struct
-            fun get (managerId : wid) : transaction directReports =
-                s <- api Common ("/workers/" ^ managerId ^ "/directReports?limit=100"); (* HACK: proper depagination; because maybe someone has over 100 direct reports *)
-                reports <- return (fromJson s : response (list $worker)).Data;
-                return {Manager = managerId,
-                        Reports = (*List.filter
-                                      (fn i => List.mem i workers)*)
-                                      (List.mp (fn w => w.Id) reports)}
-        end
+        fun getAll inst : transaction (list worker) =
+            depaginate 100 Common inst "/workers"
     end
 
+    structure Feedback = struct
+        fun get inst (workerId : wid) : transaction (list anytimeFeedback) =
+            depaginate 100 PerformanceEnablement inst ("/workers/" ^ Urls.urlencode workerId ^ "/anytimeFeedbackEvents")
+
+        fun getAll inst (workers : list wid) : transaction (list anytimeFeedback) =
+            List.mapConcatM (get inst) workers
+
+        fun parseSoap (xmlString : string) : wid =
+            (* HACK: actually parse XML *)
+            case String.ssplit {Haystack = xmlString, Needle = "<wd:ID wd:type=\"WID\">"} of
+                None => error <xml>Could not find ID in response: {[xmlString]}</xml>
+              | Some (pre, post) =>
+                case String.split post #"<" of
+                    None => error <xml>Badly formed response: {[xmlString]}</xml>
+                  | Some (pre, post) => pre
+        fun post inst (request : feedback) : transaction wid =
+            (* TODO: patch case where Feedback.Id is `Some i` *)
+            let fun toSoapXml request =
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\">
+<env:Body>
+    <bsvc:Give_Feedback_Request xmlns:bsvc=\"urn:com.workday/bsvc\" bsvc:version=\"v42.2\">
+        <bsvc:Give_Feedback_Data>
+            <bsvc:From_Worker_Reference>
+                <bsvc:ID bsvc:type=\"WID\">" ^ request.Provider ^ "</bsvc:ID>
+            </bsvc:From_Worker_Reference>
+            <bsvc:To_Workers_Reference>
+                <bsvc:ID bsvc:type=\"WID\">" ^ request.About ^ "</bsvc:ID>
+            </bsvc:To_Workers_Reference>
+            <bsvc:Comment>" ^ request.Body ^ "</bsvc:Comment>
+            <bsvc:Show_Name>true</bsvc:Show_Name>
+            <bsvc:Confidential>true</bsvc:Confidential>
+        </bsvc:Give_Feedback_Data>
+    </bsvc:Give_Feedback_Request>
+</env:Body>
+</env:Envelope>"
+    (* TODO: extra information: status, dates, requestedBy, etc *)
+
+            in
+              body <- return (toSoapXml request);
+              tok <- token;
+              debug tok;
+              url <- return ((prefix Soap inst) ^ "/Talent/v42.2");
+              resp <- logged (WorldFfi.post (bless url) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/xml; charset=utf-8") body);
+              return (parseSoap resp)
+            end
+    end
+
+    structure DirectReports = struct
+        fun get inst (managerId : wid) : transaction directReports =
+            s <- api ((prefix Common inst) ^ "/workers/" ^ Urls.urlencode managerId ^ "/directReports?limit=100"); (* HACK: proper depagination; because maybe someone has over 100 direct reports *)
+            reports <- return (fromJson s : response (list worker)).Data;
+            return {Manager = managerId,
+                    Reports = (*List.filter
+                                  (fn i => List.mem i workers)*)
+                                  (List.mp (fn w => w.Id) reports)}
+    end
 end
