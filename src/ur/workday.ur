@@ -8,11 +8,9 @@ type instance = string
 val read_instance = _
 val show_instance = _
 
-(* Opaque type for all Workday IDs. *)
+(* Non-opaque type for all Workday IDs. Must be non-opaque to play nice with SQL. *)
 type wid = string
 val show_wid = _
-val ord_wid = mkOrd {Lt = fn a b => (readError a : int) < readError b,
-                     Le = fn a b => (readError a : int) <= readError b}
 val inj_wid = _
 
 type worker = {
@@ -22,7 +20,6 @@ type worker = {
      PrimaryWorkEmail : option string
 }
 val _ : json worker = json_record_withOptional
-                           (* TODO *)
                       {Id = "id",
                        WName = "descriptor", (* name *)
                        IsManager = "isManager"}

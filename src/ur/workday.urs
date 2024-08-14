@@ -6,10 +6,9 @@ type instance
 val read_instance : read instance
 val show_instance : show instance
 
-(* Opaque type for all Workday IDs. *)
+(* Non-opaque type for all Workday IDs. Must be non-opaque to play nice with SQL. *)
 type wid = string
 val show_wid : show wid
-val ord_wid : ord wid
 val inj_wid : sql_injectable_prim wid
 
 type worker = {
@@ -108,8 +107,11 @@ type anytimeFeedback = {
 }
 val json_anytimeFeedback : Json.json anytimeFeedback
 
-datatype feedbackStatus = Complete | Requested
+(* We would like to use this type to safely express the possible variants of the
+`Status` field of `feedback`, but datatypes cannot be `sql_injectable` so there
+is not a good way to map this to strings. *)
 (*
+datatype feedbackStatus = Complete | Requested
 val show_feedbackStatus : show feedbackStatus
 val read_feedbackStatus : read feedbackStatus
 val eq_feedbackStatus : eq feedbackStatus
@@ -124,7 +126,7 @@ type feedback = {
       RequestedBy : option wid,
       Body : string, (* response *)
       Guidance : string,
-      Status : string, (* TODO: use feedbackStatus. sql_injectable instance not possible? *)
+      Status : string,
       SendMail : bool,
       LastUpdated : time
 }
