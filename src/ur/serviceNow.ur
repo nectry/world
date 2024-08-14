@@ -170,8 +170,7 @@ functor Make(M : AUTH) = struct
 	    s <- api ("table/" ^ Urls.urlencode tname ^ "?sysparm_fields=" ^ fields);
 	    v <- return (@fromJson
 			  (@json_result (@json_list
-			    (@json_record_withOptional ! _ {} {}
-			      fl jsons labels)))
+			    (@json_record_withOptional ! _ fl {} jsons {} labels)))
 			  s : result (list $(map option ts)));
 	    return v.Result
     end

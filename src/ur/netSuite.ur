@@ -396,11 +396,12 @@ functor Make(M : sig
                                         None => ""
                                       | Some offset => "?offset=" ^ show offset)
                                  (toJson {Q = @formatQuery q});
-                    r <- return (@fromJson (@json_query_results (@json_record_withOptional ! _ {} {}
-                                                                  fl
+                    r <- return (@fromJson (@json_query_results (@json_record_withOptional ! _ fl
+                                                                  {}
                                                                   (@mp [fn t => string * json t] [json]
                                                                        (fn [t] (p : string * json t) => p.2)
                                                                        fl (q.Json labels rlabels jsons rjsons))
+                                                                  {}
                                                                   (@mp [fn t => string * json t] [fn _ => string]
                                                                        (fn [t] (p : string * json t) => p.1)
                                                                        fl (q.Json labels rlabels jsons rjsons)))) s : query_results $(map option chosen));
