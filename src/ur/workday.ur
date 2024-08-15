@@ -191,7 +191,7 @@ val json_anytimeFeedback : json anytimeFeedback =
                 }
 
 type patchFeedback = {Id : string,
-                      Comment : richtext}
+                      Comment : string}
 val json_patchFeedback : json patchFeedback =
     json_record {Id = "id",
                  Comment = "comment"}
@@ -302,7 +302,11 @@ functor Make(M : AUTH) = struct
                   | Some (pre, post) => pre
 
         fun patch inst (request : feedback) : transaction unit =
-            resp <- logged (apiPost ((prefix PerformanceEnablement inst) ^ "/workers/" ^ Urls.urlencode request.About ^ "/anytimeFeedbackEvents") {Id = Option.getOrError <xml>Worker ID not found!</xml> request.Wid, Comment = Urls.urlencode request.Body);
+            url <- return ((prefix PerformanceEnablement inst) ^ "/workers/" ^ Urls.urlencode request.About ^ "/anytimeFeedbackEvents");
+            body <- return (toJson {
+              Id = Option.getOrError <xml>Worker ID not found!</xml> request.Wid,
+              Comment = Urls.urlencode (show request.Body)});
+            resp <- apiPost url body;
             return ()
 
         fun post inst (request : feedback) : transaction wid =
@@ -319,7 +323,7 @@ functor Make(M : AUTH) = struct
             <bsvc:To_Workers_Reference>
                 <bsvc:ID bsvc:type=\"WID\">" ^ request.About ^ "</bsvc:ID>
             </bsvc:To_Workers_Reference>
-            <bsvc:Comment>" ^ (case show request.Body of "" => "[Awaiting Feedback From Provider]" | s => show (cdata (show s) : xbody)) ^ "</bsvc:Comment>
+            <bsvc:Comment>" ^ (case show request.Body of "" => "[Awaiting Feedback From Provider]" | s => Urls.urlencode (show s)) ^ "</bsvc:Comment>
             <bsvc:Show_Name>true</bsvc:Show_Name>
             <bsvc:Confidential>true</bsvc:Confidential>
         </bsvc:Give_Feedback_Data>
