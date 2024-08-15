@@ -190,8 +190,14 @@ val json_anytimeFeedback : json anytimeFeedback =
                   *)
                 }
 
-datatype feedbackStatus = Complete | Requested
+type patchFeedback = {Id : string,
+                      Comment : richtext}
+val json_patchFeedback : json patchFeedback =
+    json_record {Id = "id",
+                 Comment = "comment"}
+
 (*
+datatype feedbackStatus = Complete | Requested
 val show_feedbackStatus : show feedbackStatus =
  fn s => case s of
              Complete => "Complete"
@@ -294,6 +300,11 @@ functor Make(M : AUTH) = struct
                 case String.split post #"<" of
                     None => error <xml>Badly formed response: {[xmlString]}</xml>
                   | Some (pre, post) => pre
+
+        fun patch inst (request : feedback) : transaction unit =
+            resp <- logged (apiPost ((prefix PerformanceEnablement inst) ^ "/workers/" ^ Urls.urlencode request.About ^ "/anytimeFeedbackEvents") {Id = request.Id, Comment = Urls.urlencode request.Body);
+            return ()
+
         fun post inst (request : feedback) : transaction wid =
             (* TODO: patch case where Feedback.Id is `Some i` *)
             let fun toSoapXml request =
@@ -308,7 +319,7 @@ functor Make(M : AUTH) = struct
             <bsvc:To_Workers_Reference>
                 <bsvc:ID bsvc:type=\"WID\">" ^ request.About ^ "</bsvc:ID>
             </bsvc:To_Workers_Reference>
-            <bsvc:Comment>" ^ (case show request.Body of "" => "[Awaiting Feedback From Provider]" | s => show (cdata s : xbody)) ^ "</bsvc:Comment>
+            <bsvc:Comment>" ^ (case show request.Body of "" => "[Awaiting Feedback From Provider]" | s => show (cdata (show s) : xbody)) ^ "</bsvc:Comment>
             <bsvc:Show_Name>true</bsvc:Show_Name>
             <bsvc:Confidential>true</bsvc:Confidential>
         </bsvc:Give_Feedback_Data>
@@ -322,6 +333,7 @@ functor Make(M : AUTH) = struct
               tok <- token;
               debug tok;
               url <- return ((prefix Soap inst) ^ "/Talent/v42.2");
+              debug body;
               resp <- logged (WorldFfi.post (bless url) (WorldFfi.addHeader WorldFfi.emptyHeaders "Authorization" ("Bearer " ^ tok)) (Some "application/xml; charset=utf-8") body);
               return (parseSoap resp)
             end

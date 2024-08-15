@@ -140,6 +140,7 @@ functor Make(M : AUTH) : sig
         val get : instance -> wid -> transaction (list anytimeFeedback)
         val getAll : instance -> list wid -> transaction (list anytimeFeedback)
         val post : instance -> feedback -> transaction wid
+        val patch : instance -> feedback -> transaction unit
     end
     structure DirectReports : sig
         val get : instance -> wid -> transaction directReports
