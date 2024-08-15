@@ -302,7 +302,7 @@ functor Make(M : AUTH) = struct
                   | Some (pre, post) => pre
 
         fun patch inst (request : feedback) : transaction unit =
-            resp <- logged (apiPost ((prefix PerformanceEnablement inst) ^ "/workers/" ^ Urls.urlencode request.About ^ "/anytimeFeedbackEvents") {Id = request.Id, Comment = Urls.urlencode request.Body);
+            resp <- logged (apiPost ((prefix PerformanceEnablement inst) ^ "/workers/" ^ Urls.urlencode request.About ^ "/anytimeFeedbackEvents") {Id = Option.getOrError <xml>Worker ID not found!</xml> request.Wid, Comment = Urls.urlencode request.Body);
             return ()
 
         fun post inst (request : feedback) : transaction wid =
