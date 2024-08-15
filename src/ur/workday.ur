@@ -308,7 +308,7 @@ functor Make(M : AUTH) = struct
             <bsvc:To_Workers_Reference>
                 <bsvc:ID bsvc:type=\"WID\">" ^ request.About ^ "</bsvc:ID>
             </bsvc:To_Workers_Reference>
-            <bsvc:Comment>" ^ (case show request.Body of "" => "[Awaiting Feedback From Provider]" | s => s) ^ "</bsvc:Comment>
+            <bsvc:Comment>" ^ (case show request.Body of "" => "[Awaiting Feedback From Provider]" | s => show (cdata s : xbody)) ^ "</bsvc:Comment>
             <bsvc:Show_Name>true</bsvc:Show_Name>
             <bsvc:Confidential>true</bsvc:Confidential>
         </bsvc:Give_Feedback_Data>
